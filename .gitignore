@@ -1,0 +1,31 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Downloads
+*.deb
+*.rpm
+*.tar.gz
+*.tgz
+*.zip
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Ops Manager packages (large files)
+mongodb-mms-*.rpm
+mongodb-mms-*.deb
