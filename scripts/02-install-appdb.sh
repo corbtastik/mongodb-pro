@@ -1,11 +1,12 @@
 #!/bin/bash
 # Step 2: Install MongoDB AppDB in the VM
+# Sets up a 3-node replica set on ports 27017, 27018, 27019 (all in same VM)
 set -e
 
 VM_NAME="opsmanager"
 MONGODB_VERSION="8.0"
 
-echo "=== Installing MongoDB ${MONGODB_VERSION} AppDB in VM: ${VM_NAME} ==="
+echo "=== Installing MongoDB ${MONGODB_VERSION} AppDB (3-node RS) in VM: ${VM_NAME} ==="
 echo ""
 
 # Check if VM is running
@@ -27,8 +28,10 @@ apt-get install -y gnupg curl
 
 echo ""
 echo "=== Adding MongoDB GPG key ==="
-curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc | \
-    gpg --dearmor -o /usr/share/keyrings/mongodb-server-8.0.gpg
+if [ ! -f /usr/share/keyrings/mongodb-server-8.0.gpg ]; then
+    curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc | \
+        gpg --dearmor -o /usr/share/keyrings/mongodb-server-8.0.gpg
+fi
 
 echo ""
 echo "=== Adding MongoDB 8.0 repository ==="
@@ -44,78 +47,169 @@ echo "=== Installing MongoDB 8.0 ==="
 apt-get install -y mongodb-org
 
 echo ""
-echo "=== Creating data directory ==="
-mkdir -p /var/lib/mongodb
-chown -R mongodb:mongodb /var/lib/mongodb
+echo "=== Configuring system limits ==="
+cat >> /etc/security/limits.conf << 'LIMITS'
+
+# MongoDB limits
+mongodb      soft    nofile    64000
+mongodb      hard    nofile    64000
+mongodb      soft    nproc     64000
+mongodb      hard    nproc     64000
+LIMITS
 
 echo ""
-echo "=== Creating log directory ==="
-mkdir -p /var/log/mongodb
+echo "=== Stopping default mongod service ==="
+systemctl stop mongod 2>/dev/null || true
+systemctl disable mongod 2>/dev/null || true
+
+echo ""
+echo "=== Creating directories for 3-node replica set ==="
+for i in 1 2 3; do
+    mkdir -p /var/lib/mongodb/rs${i}
+    mkdir -p /var/log/mongodb
+    chown -R mongodb:mongodb /var/lib/mongodb/rs${i}
+done
 chown -R mongodb:mongodb /var/log/mongodb
 
-INSTALL_SCRIPT
+echo ""
+echo "=== Creating mongod config files ==="
+
+# Node 1 - port 27017
+cat > /etc/mongod-rs1.conf << 'EOF'
+storage:
+  dbPath: /var/lib/mongodb/rs1
+systemLog:
+  destination: file
+  logAppend: true
+  path: /var/log/mongodb/mongod-rs1.log
+net:
+  port: 27017
+  bindIp: 0.0.0.0
+processManagement:
+  timeZoneInfo: /usr/share/zoneinfo
+replication:
+  replSetName: appdbRS
+EOF
+
+# Node 2 - port 27018
+cat > /etc/mongod-rs2.conf << 'EOF'
+storage:
+  dbPath: /var/lib/mongodb/rs2
+systemLog:
+  destination: file
+  logAppend: true
+  path: /var/log/mongodb/mongod-rs2.log
+net:
+  port: 27018
+  bindIp: 0.0.0.0
+processManagement:
+  timeZoneInfo: /usr/share/zoneinfo
+replication:
+  replSetName: appdbRS
+EOF
+
+# Node 3 - port 27019
+cat > /etc/mongod-rs3.conf << 'EOF'
+storage:
+  dbPath: /var/lib/mongodb/rs3
+systemLog:
+  destination: file
+  logAppend: true
+  path: /var/log/mongodb/mongod-rs3.log
+net:
+  port: 27019
+  bindIp: 0.0.0.0
+processManagement:
+  timeZoneInfo: /usr/share/zoneinfo
+replication:
+  replSetName: appdbRS
+EOF
 
 echo ""
-echo "=== Copying mongod configuration ==="
-# Get the script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+echo "=== Creating systemd service files ==="
 
-# Copy the mongod.conf to the VM
-orb push -m "$VM_NAME" "$PROJECT_DIR/config/mongod.conf" /tmp/mongod.conf
-orb -m "$VM_NAME" -u root bash -c "mv /tmp/mongod.conf /etc/mongod.conf && chown root:root /etc/mongod.conf"
+for i in 1 2 3; do
+    port=$((27016 + i))
+    cat > /etc/systemd/system/mongod-rs${i}.service << EOF
+[Unit]
+Description=MongoDB Database Server (RS Node ${i})
+Documentation=https://docs.mongodb.org/manual
+After=network-online.target
+Wants=network-online.target
 
-# Start MongoDB and initialize replica set
-orb -m "$VM_NAME" -u root bash << 'START_SCRIPT'
-set -e
+[Service]
+User=mongodb
+Group=mongodb
+ExecStart=/usr/bin/mongod --config /etc/mongod-rs${i}.conf
+RuntimeDirectory=mongodb
+PIDFile=/var/run/mongodb/mongod-rs${i}.pid
+LimitNOFILE=64000
+LimitNPROC=64000
+
+[Install]
+WantedBy=multi-user.target
+EOF
+done
+
+systemctl daemon-reload
 
 echo ""
-echo "=== Starting MongoDB ==="
-systemctl enable mongod
-systemctl start mongod
+echo "=== Starting all 3 MongoDB nodes ==="
+for i in 1 2 3; do
+    systemctl enable mongod-rs${i}
+    systemctl start mongod-rs${i}
+    echo "Started mongod-rs${i}"
+done
 
-echo "Waiting for MongoDB to start..."
+echo "Waiting for nodes to start..."
 sleep 5
 
-# Check if mongod is running
-if ! systemctl is-active --quiet mongod; then
-    echo "ERROR: MongoDB failed to start"
-    journalctl -u mongod --no-pager -n 50
-    exit 1
-fi
+# Verify all nodes are running
+for i in 1 2 3; do
+    if ! systemctl is-active --quiet mongod-rs${i}; then
+        echo "ERROR: mongod-rs${i} failed to start"
+        journalctl -u mongod-rs${i} --no-pager -n 20
+        exit 1
+    fi
+done
+echo "All nodes running."
 
 echo ""
 echo "=== Initializing replica set ==="
 # Check if already initialized
-RS_STATUS=$(mongosh --quiet --eval "try { rs.status().ok } catch(e) { 0 }" 2>/dev/null || echo "0")
+RS_STATUS=$(mongosh --port 27017 --quiet --eval "try { rs.status().ok } catch(e) { 0 }" 2>/dev/null || echo "0")
 
 if [ "$RS_STATUS" = "1" ]; then
     echo "Replica set already initialized."
 else
-    echo "Initializing replica set 'appdbRS'..."
-    mongosh --quiet --eval '
+    echo "Initializing replica set 'appdbRS' with 3 members..."
+    mongosh --port 27017 --quiet --eval '
         rs.initiate({
             _id: "appdbRS",
-            members: [{ _id: 0, host: "localhost:27017" }]
+            members: [
+                { _id: 0, host: "localhost:27017" },
+                { _id: 1, host: "localhost:27018" },
+                { _id: 2, host: "localhost:27019" }
+            ]
         })
     '
 
     # Wait for replica set to elect primary
     echo "Waiting for primary election..."
-    sleep 5
+    sleep 10
 fi
 
 echo ""
 echo "=== Verifying replica set status ==="
-mongosh --quiet --eval 'rs.status().members.forEach(m => print(m.name + " - " + m.stateStr))'
+mongosh --port 27017 --quiet --eval 'rs.status().members.forEach(m => print(m.name + " - " + m.stateStr))'
 
 echo ""
 echo "=== MongoDB version ==="
 mongod --version | head -1
 
-START_SCRIPT
+INSTALL_SCRIPT
 
 echo ""
 echo "=== AppDB installation complete ==="
-echo "MongoDB is running as replica set 'appdbRS' on ${VM_NAME}:27017"
-echo "Connection string: mongodb://${VM_NAME}.orb.local:27017/?replicaSet=appdbRS"
+echo "MongoDB 3-node replica set 'appdbRS' running on ports 27017, 27018, 27019"
+echo "Connection string: mongodb://opsmanager.orb.local:27017,opsmanager.orb.local:27018,opsmanager.orb.local:27019/?replicaSet=appdbRS"

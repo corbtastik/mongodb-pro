@@ -1,0 +1,39 @@
+apiVersion: mongodb.com/v1
+kind: MongoDB
+metadata:
+  name: demo-rs
+  namespace: mongodb
+spec:
+  # 3-member replica set
+  members: 3
+  version: "8.0.0-ent"
+  type: ReplicaSet
+
+  # Reference to Ops Manager credentials (lab-02 project)
+  opsManager:
+    configMapRef:
+      name: ops-manager-connection-lab02
+  credentials: ops-manager-credentials
+
+  # Enable authentication
+  security:
+    authentication:
+      enabled: true
+      modes: ["SCRAM"]
+
+  # Persistent storage
+  persistent: true
+
+  # Resource requirements (adjust as needed)
+  podSpec:
+    podTemplate:
+      spec:
+        containers:
+          - name: mongodb-enterprise-database
+            resources:
+              limits:
+                cpu: "2"
+                memory: 4Gi
+              requests:
+                cpu: "1"
+                memory: 2Gi

@@ -1,0 +1,39 @@
+apiVersion: mongodb.com/v1
+kind: MongoDB
+metadata:
+  name: demo-standalone
+  namespace: mongodb
+spec:
+  # Single node standalone
+  members: 1
+  version: "8.0.0-ent"
+  type: Standalone
+
+  # Reference to Ops Manager credentials
+  opsManager:
+    configMapRef:
+      name: ops-manager-connection
+  credentials: ops-manager-credentials
+
+  # Enable authentication
+  security:
+    authentication:
+      enabled: true
+      modes: ["SCRAM"]
+
+  # Persistent storage
+  persistent: true
+
+  # Resource requirements
+  podSpec:
+    podTemplate:
+      spec:
+        containers:
+          - name: mongodb-enterprise-database
+            resources:
+              limits:
+                cpu: "2"
+                memory: 4Gi
+              requests:
+                cpu: "1"
+                memory: 2Gi

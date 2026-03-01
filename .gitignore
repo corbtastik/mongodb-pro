@@ -26,6 +26,8 @@ tmp/
 temp/
 *.tmp
 
+.env
+
 # Ops Manager packages (large files)
 mongodb-mms-*.rpm
 mongodb-mms-*.deb
