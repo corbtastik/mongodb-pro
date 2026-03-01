@@ -1,0 +1,134 @@
+##############################################
+# Users for demo-standalone (lab-01 project)
+##############################################
+
+# dbUser - Application user (CRUD, collections, indexes)
+apiVersion: mongodb.com/v1
+kind: MongoDBUser
+metadata:
+  name: dbuser-standalone
+  namespace: mongodb
+spec:
+  username: dbUser
+  db: admin
+  passwordSecretKeyRef:
+    name: mongodb-user-credentials
+    key: dbUser-password
+  mongodbResourceRef:
+    name: demo-standalone
+    namespace: mongodb
+  roles:
+    - db: admin
+      name: readWriteAnyDatabase
+
+---
+# dbAdmin - Database administrator (create DBs, manage users)
+apiVersion: mongodb.com/v1
+kind: MongoDBUser
+metadata:
+  name: dbadmin-standalone
+  namespace: mongodb
+spec:
+  username: dbAdmin
+  db: admin
+  passwordSecretKeyRef:
+    name: mongodb-user-credentials
+    key: dbAdmin-password
+  mongodbResourceRef:
+    name: demo-standalone
+    namespace: mongodb
+  roles:
+    - db: admin
+      name: dbAdminAnyDatabase
+    - db: admin
+      name: userAdminAnyDatabase
+    - db: admin
+      name: readWriteAnyDatabase
+
+---
+# sysAdmin - Superuser (full control)
+apiVersion: mongodb.com/v1
+kind: MongoDBUser
+metadata:
+  name: sysadmin-standalone
+  namespace: mongodb
+spec:
+  username: sysAdmin
+  db: admin
+  passwordSecretKeyRef:
+    name: mongodb-user-credentials
+    key: sysAdmin-password
+  mongodbResourceRef:
+    name: demo-standalone
+    namespace: mongodb
+  roles:
+    - db: admin
+      name: root
+
+---
+##############################################
+# Users for demo-rs (lab-02 project)
+##############################################
+
+# dbUser - Application user (CRUD, collections, indexes)
+apiVersion: mongodb.com/v1
+kind: MongoDBUser
+metadata:
+  name: dbuser-rs
+  namespace: mongodb
+spec:
+  username: dbUser
+  db: admin
+  passwordSecretKeyRef:
+    name: mongodb-user-credentials
+    key: dbUser-password
+  mongodbResourceRef:
+    name: demo-rs
+    namespace: mongodb
+  roles:
+    - db: admin
+      name: readWriteAnyDatabase
+
+---
+# dbAdmin - Database administrator (create DBs, manage users)
+apiVersion: mongodb.com/v1
+kind: MongoDBUser
+metadata:
+  name: dbadmin-rs
+  namespace: mongodb
+spec:
+  username: dbAdmin
+  db: admin
+  passwordSecretKeyRef:
+    name: mongodb-user-credentials
+    key: dbAdmin-password
+  mongodbResourceRef:
+    name: demo-rs
+    namespace: mongodb
+  roles:
+    - db: admin
+      name: dbAdminAnyDatabase
+    - db: admin
+      name: userAdminAnyDatabase
+    - db: admin
+      name: readWriteAnyDatabase
+
+---
+# sysAdmin - Superuser (full control)
+apiVersion: mongodb.com/v1
+kind: MongoDBUser
+metadata:
+  name: sysadmin-rs
+  namespace: mongodb
+spec:
+  username: sysAdmin
+  db: admin
+  passwordSecretKeyRef:
+    name: mongodb-user-credentials
+    key: sysAdmin-password
+  mongodbResourceRef:
+    name: demo-rs
+    namespace: mongodb
+  roles:
+    - db: admin
+      name: root
