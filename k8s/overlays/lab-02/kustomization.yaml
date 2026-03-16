@@ -1,0 +1,90 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: mongodb
+
+resources:
+  - ../../base
+
+patches:
+  # Patch MongoDB deployment - ReplicaSet with 3 members
+  - target:
+      kind: MongoDB
+      name: mongodb-deployment
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: demo-rs
+      - op: replace
+        path: /spec/type
+        value: ReplicaSet
+      - op: replace
+        path: /spec/members
+        value: 3
+      - op: replace
+        path: /spec/opsManager/configMapRef/name
+        value: ops-manager-connection-lab02
+
+  # Patch Ops Manager ConfigMap for lab-02
+  - target:
+      kind: ConfigMap
+      name: ops-manager-connection
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: ops-manager-connection-lab02
+      - op: replace
+        path: /data/orgId
+        value: "69a34148d21fd11d35c6554c"
+      - op: replace
+        path: /data/projectName
+        value: "lab-02"
+
+  # Patch Service
+  - target:
+      kind: Service
+      name: mongodb-external
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: demo-rs-external
+      - op: replace
+        path: /spec/selector/app
+        value: demo-rs-svc
+      - op: replace
+        path: /spec/ports/0/nodePort
+        value: 30191
+
+  # Patch MongoDBUser resources
+  - target:
+      kind: MongoDBUser
+      name: dbuser
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: dbuser-rs
+      - op: replace
+        path: /spec/mongodbResourceRef/name
+        value: demo-rs
+
+  - target:
+      kind: MongoDBUser
+      name: dbadmin
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: dbadmin-rs
+      - op: replace
+        path: /spec/mongodbResourceRef/name
+        value: demo-rs
+
+  - target:
+      kind: MongoDBUser
+      name: sysadmin
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: sysadmin-rs
+      - op: replace
+        path: /spec/mongodbResourceRef/name
+        value: demo-rs

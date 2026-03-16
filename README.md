@@ -66,13 +66,12 @@ Local MongoDB Enterprise environment with Ops Manager and Kubernetes Operator on
 cp .env.example .env
 # Edit .env with your Ops Manager credentials
 
-# 6. Deploy Kubernetes Operator and MongoDB clusters
+# 6. Deploy Kubernetes Operator
 ./scripts/04-setup-k8s-operator.sh
-kubectl apply -f k8s/mongodb-standalone.yaml
-kubectl apply -f k8s/mongodb-replicaset.yaml
-kubectl apply -f k8s/mongodb-services.yaml
-kubectl apply -f k8s/mongodb-users-secret.yaml
-kubectl apply -f k8s/mongodb-users.yaml
+
+# 7. Deploy MongoDB clusters using Kustomize
+kubectl apply -k k8s/overlays/lab-01    # Standalone
+kubectl apply -k k8s/overlays/lab-02    # ReplicaSet
 ```
 
 ### Lifecycle Management
@@ -86,6 +85,69 @@ kubectl apply -f k8s/mongodb-users.yaml
 
 # Destroy everything (ALL DATA LOST)
 ./scripts/teardown.sh
+```
+
+## Kustomize Deployment
+
+This project uses Kustomize for templated MongoDB deployments. Each project gets its own overlay.
+
+### Deploy Using Overlays
+
+```bash
+# Preview what will be deployed
+kubectl kustomize k8s/overlays/lab-01
+
+# Deploy standalone (lab-01 project)
+kubectl apply -k k8s/overlays/lab-01
+
+# Deploy replica set (lab-02 project)
+kubectl apply -k k8s/overlays/lab-02
+```
+
+### Create New Deployments
+
+```bash
+# 1. Create a new project in Ops Manager
+./scripts/create-project.sh lab-03
+
+# 2. Generate a new Kustomize overlay
+./scripts/new-overlay.sh lab-03                              # Standalone (default)
+./scripts/new-overlay.sh lab-04 --type ReplicaSet            # 3-node replica set
+./scripts/new-overlay.sh lab-05 --type ReplicaSet --members 5 --cpu-limit 4
+
+# 3. Deploy
+kubectl apply -k k8s/overlays/lab-03
+```
+
+### Overlay Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--type` | Standalone | MongoDB deployment type (Standalone or ReplicaSet) |
+| `--members` | 1 (Standalone), 3 (ReplicaSet) | Number of replica set members |
+| `--nodeport` | Auto-assign | NodePort for external access |
+| `--cpu-limit` | 2 | CPU limit per pod |
+| `--memory-limit` | 4Gi | Memory limit per pod |
+| `--org-id` | From .env | Ops Manager Organization ID |
+
+### Kustomize Structure
+
+```
+k8s/
+├── base/                       # Base templates (Standalone default)
+│   ├── kustomization.yaml
+│   ├── namespace.yaml
+│   ├── mongodb.yaml            # MongoDB CRD template
+│   ├── service.yaml            # NodePort service template
+│   ├── ops-manager-config.yaml # Ops Manager connection
+│   ├── ops-manager-secret.yaml # API credentials
+│   ├── users.yaml              # MongoDBUser resources
+│   └── users-secret.yaml       # User credentials
+└── overlays/                   # Per-project customizations
+    ├── lab-01/                 # Standalone deployment
+    │   └── kustomization.yaml
+    └── lab-02/                 # ReplicaSet deployment
+        └── kustomization.yaml
 ```
 
 ## Connecting to MongoDB
@@ -151,22 +213,33 @@ mongodb-pro/
 │   ├── 01-create-opsmanager-vm.sh   # Create x86_64 Ubuntu VM
 │   ├── 02-install-appdb.sh          # Install MongoDB 8.0 AppDB (3-node RS)
 │   ├── 03-install-opsmanager.sh     # Install Ops Manager 8.0
-│   ├── 04-setup-k8s-operator.sh     # Deploy K8s Operator + ConfigMaps
-│   ├── start-all.sh                 # Start VM + scale up K8s workloads
-│   ├── stop-all.sh                  # Scale down K8s + stop VM
-│   └── teardown.sh                  # Destroy everything
+│   ├── 04-setup-k8s-operator.sh     # Deploy K8s Operator + secrets
+│   ├── create-org.sh               # Create Ops Manager organization
+│   ├── create-project.sh           # Create Ops Manager project
+│   ├── new-overlay.sh              # Generate Kustomize overlay
+│   ├── start-all.sh                # Start VM + scale up K8s workloads
+│   ├── stop-all.sh                 # Scale down K8s + stop VM
+│   └── teardown.sh                 # Destroy everything
 ├── config/
 │   └── mongod.conf                  # AppDB config reference
 ├── k8s/
-│   ├── namespace.yaml               # mongodb namespace
-│   ├── ops-manager-config.yaml      # Ops Manager connection (lab-01)
-│   ├── ops-manager-config-lab02.yaml # Ops Manager connection (lab-02)
-│   ├── ops-manager-secret.yaml      # API credentials
-│   ├── mongodb-standalone.yaml      # Standalone deployment (lab-01)
-│   ├── mongodb-replicaset.yaml      # 3-node ReplicaSet (lab-02)
-│   ├── mongodb-services.yaml        # NodePort services for external access
-│   ├── mongodb-users-secret.yaml    # User credentials (3 users)
-│   └── mongodb-users.yaml           # MongoDBUser resources (6 total)
+│   ├── base/                        # Kustomize base templates
+│   │   ├── kustomization.yaml
+│   │   ├── namespace.yaml
+│   │   ├── mongodb.yaml
+│   │   ├── service.yaml
+│   │   ├── ops-manager-config.yaml
+│   │   ├── ops-manager-secret.yaml
+│   │   ├── users.yaml
+│   │   └── users-secret.yaml
+│   ├── overlays/                    # Per-project overlays
+│   │   ├── lab-01/                  # Standalone deployment
+│   │   └── lab-02/                  # ReplicaSet deployment
+│   ├── mongodb-standalone.yaml      # Legacy: standalone (lab-01)
+│   ├── mongodb-replicaset.yaml      # Legacy: replica set (lab-02)
+│   ├── mongodb-services.yaml        # Legacy: NodePort services
+│   ├── mongodb-users-secret.yaml    # Legacy: user credentials
+│   └── mongodb-users.yaml           # Legacy: MongoDBUser resources
 └── docs/
     └── NOTES.md
 ```
@@ -198,16 +271,16 @@ mongodb-pro/
 
 | Component | Storage | Survives Stop/Start | Survives Teardown |
 |-----------|---------|---------------------|-------------------|
-| AppDB | VM disk `/var/lib/mongodb/` | ✅ Yes | ❌ No |
-| Ops Manager | VM disk `/opt/mongodb/mms/` | ✅ Yes | ❌ No |
-| K8s MongoDB | PersistentVolumeClaims | ✅ Yes | ❌ No |
+| AppDB | VM disk `/var/lib/mongodb/` | Yes | No |
+| Ops Manager | VM disk `/opt/mongodb/mms/` | Yes | No |
+| K8s MongoDB | PersistentVolumeClaims | Yes | No |
 
 ## Ops Manager Projects
 
-| Project | Purpose | K8s ConfigMap | Deployments |
-|---------|---------|---------------|-------------|
-| lab-01 | Standalone instances | `ops-manager-connection` | demo-standalone |
-| lab-02 | Replica sets | `ops-manager-connection-lab02` | demo-rs |
+| Project | Purpose | Kustomize Overlay | Deployments |
+|---------|---------|-------------------|-------------|
+| lab-01 | Standalone instances | `k8s/overlays/lab-01` | demo-standalone |
+| lab-02 | Replica sets | `k8s/overlays/lab-02` | demo-rs |
 
 ## Troubleshooting
 
@@ -239,7 +312,7 @@ orb -m opsmanager -u root tail -f /opt/mongodb/mms/logs/mms0.log
 
 | Issue | Solution |
 |-------|----------|
-| Connection refused after restart | Reapply services: `kubectl apply -f k8s/mongodb-services.yaml` |
+| Connection refused after restart | Reapply overlay: `kubectl apply -k k8s/overlays/lab-01` |
 | "Too many open files" | File limits configured in install scripts |
 | "at least 3 nodes required" | AppDB must be 3-node RS (handled by scripts) |
 | "IP address not on access list" | Add `192.168.139.0/24` to API key access list in Ops Manager |
@@ -251,3 +324,4 @@ orb -m opsmanager -u root tail -f /opt/mongodb/mms/logs/mms0.log
 - [MongoDB Ops Manager Documentation](https://www.mongodb.com/docs/ops-manager/current/)
 - [MongoDB Enterprise Kubernetes Operator](https://www.mongodb.com/docs/kubernetes-operator/stable/)
 - [OrbStack Documentation](https://docs.orbstack.dev/)
+- [Kustomize Documentation](https://kustomize.io/)

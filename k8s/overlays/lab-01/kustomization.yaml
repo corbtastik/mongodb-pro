@@ -1,0 +1,84 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: mongodb
+
+resources:
+  - ../../base
+
+patches:
+  # Patch MongoDB deployment
+  - target:
+      kind: MongoDB
+      name: mongodb-deployment
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: demo-standalone
+      - op: replace
+        path: /spec/type
+        value: Standalone
+      - op: replace
+        path: /spec/members
+        value: 1
+
+  # Patch Ops Manager ConfigMap
+  - target:
+      kind: ConfigMap
+      name: ops-manager-connection
+    patch: |-
+      - op: replace
+        path: /data/orgId
+        value: "69a34148d21fd11d35c6554c"
+      - op: replace
+        path: /data/projectName
+        value: "lab-01"
+
+  # Patch Service
+  - target:
+      kind: Service
+      name: mongodb-external
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: demo-standalone-external
+      - op: replace
+        path: /spec/selector/app
+        value: demo-standalone-svc
+      - op: replace
+        path: /spec/ports/0/nodePort
+        value: 31261
+
+  # Patch MongoDBUser resources
+  - target:
+      kind: MongoDBUser
+      name: dbuser
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: dbuser-standalone
+      - op: replace
+        path: /spec/mongodbResourceRef/name
+        value: demo-standalone
+
+  - target:
+      kind: MongoDBUser
+      name: dbadmin
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: dbadmin-standalone
+      - op: replace
+        path: /spec/mongodbResourceRef/name
+        value: demo-standalone
+
+  - target:
+      kind: MongoDBUser
+      name: sysadmin
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: sysadmin-standalone
+      - op: replace
+        path: /spec/mongodbResourceRef/name
+        value: demo-standalone
