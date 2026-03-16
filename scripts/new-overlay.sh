@@ -101,12 +101,28 @@ if [[ -z "$MEMBERS" ]]; then
     fi
 fi
 
-# Auto-assign nodeport if not provided (find next available in 31000-32000 range)
+# Auto-assign nodeport if not provided (find next available in 30000-32767 range)
 if [[ -z "$NODEPORT" ]]; then
-    EXISTING_PORTS=$(grep -r "nodePort:" "$PROJECT_ROOT/k8s/overlays" 2>/dev/null | grep -oE '[0-9]+' | sort -n)
-    NODEPORT=31000
+    # Collect ports from overlay files
+    OVERLAY_PORTS=$(grep -r "nodePort:" "$PROJECT_ROOT/k8s/overlays" 2>/dev/null | grep -oE '[0-9]+' || true)
+
+    # Collect ports actually allocated in Kubernetes cluster
+    K8S_PORTS=""
+    if kubectl cluster-info &>/dev/null; then
+        K8S_PORTS=$(kubectl get svc --all-namespaces -o jsonpath='{.items[*].spec.ports[*].nodePort}' 2>/dev/null | tr ' ' '\n' | grep -v '^$' || true)
+    fi
+
+    # Combine and deduplicate
+    EXISTING_PORTS=$(echo -e "${OVERLAY_PORTS}\n${K8S_PORTS}" | grep -v '^$' | sort -n | uniq)
+
+    # Find first available port starting at 30100 (avoid low 30000s often used by system)
+    NODEPORT=30100
     while echo "$EXISTING_PORTS" | grep -q "^${NODEPORT}$"; do
         ((NODEPORT++))
+        if [[ $NODEPORT -gt 32767 ]]; then
+            echo "Error: No available NodePorts in range 30100-32767"
+            exit 1
+        fi
     done
 fi
 
