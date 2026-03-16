@@ -5,7 +5,7 @@
 
 ## Key Message
 
-MongoDB Ops Manager provides a **unified control plane** for MongoDB Enterprise databases with full API-driven automation. Every operation—from organization setup to cluster deployment to scaling—can be automated, enabling GitOps workflows, infrastructure-as-code, and operational excellence at scale.
+MongoDB Ops Manager provides a **unified control plane** for MongoDB Enterprise databases with full API-driven automation. Every operation—from project creation to cluster deployment to scaling—can be automated, enabling GitOps workflows, infrastructure-as-code, and operational excellence at scale.
 
 ---
 
@@ -15,7 +15,7 @@ MongoDB Ops Manager provides a **unified control plane** for MongoDB Enterprise 
 |---------|----------|-------|
 | 1. Context & Architecture | 3 min | Why automation matters |
 | 2. Ops Manager Tour | 5 min | The control plane |
-| 3. API-Driven Setup | 7 min | Automated org/project creation |
+| 3. API-Driven Project Setup | 7 min | Automated project creation |
 | 4. Declarative Deployment | 10 min | Deploy MongoDB clusters |
 | 5. Operational Excellence | 5 min | Day-2 operations |
 
@@ -37,6 +37,11 @@ kubectl get pods -n mongodb | grep operator
 # Verify .env is configured
 cat .env | grep -v "^#" | grep -v "^$"
 # Expected: All 4 variables set
+
+# Verify API access works
+./scripts/create-project.sh pre-demo-test
+# Expected: Project created successfully
+# Clean up: delete "pre-demo-test" project in Ops Manager UI
 ```
 
 ---
@@ -49,7 +54,7 @@ cat .env | grep -v "^#" | grep -v "^$"
 
 > "MongoDB Ops Manager is our enterprise control plane. It provides a single pane of glass for all MongoDB deployments, and critically, it exposes a **complete REST API** that enables full automation."
 
-> "Today I'll show you how every aspect of MongoDB management—from creating organizations to deploying clusters—can be fully automated. No clicking through UIs, no manual steps."
+> "Today I'll show you how MongoDB management—from project setup to cluster deployment—can be fully automated. Infrastructure as code, GitOps workflows, CI/CD integration."
 
 ### Show Architecture
 
@@ -67,9 +72,9 @@ cat .env | grep -v "^#" | grep -v "^$"
 │  ┌───────────────────────────────────────────────────────┐  │
 │  │              MONGODB OPS MANAGER                       │  │
 │  │                   REST API                             │  │
-│  │  • Organizations    • Monitoring    • Backup           │  │
-│  │  • Projects         • Alerts        • Automation       │  │
-│  │  • Deployments      • Metrics       • Security         │  │
+│  │  • Projects         • Monitoring    • Backup           │  │
+│  │  • Deployments      • Alerts        • Automation       │  │
+│  │  • Users/Roles      • Metrics       • Security         │  │
 │  └───────────────────────────────────────────────────────┘  │
 │                          │                                   │
 │                          ▼                                   │
@@ -95,15 +100,17 @@ http://opsmanager.orb.local:8080
 1. **Organizations** - Logical grouping for teams/business units
    - Navigate to: Organization Settings
    - Show: Organization ID (this is what the API uses)
+   - Note: "Organizations are typically set up once by admins. Projects within them are what teams automate."
 
 2. **Projects** - Isolation boundary for deployments
    - Each project = one MongoDB deployment
    - Separate monitoring, alerts, backups
+   - "This is where automation shines—project creation, deployment, configuration."
 
 3. **Access Manager** - API Keys
    - Navigate to: Organization → Access Manager → API Keys
    - Show: Public/Private key pairs
-   - Emphasize: "This is how automation authenticates"
+   - Emphasize: "This is how automation authenticates—no user passwords in scripts."
 
 4. **Deployment View** (if clusters exist)
    - Real-time topology
@@ -116,7 +123,7 @@ http://opsmanager.orb.local:8080
 
 ---
 
-## 3. API-Driven Setup (7 min)
+## 3. API-Driven Project Setup (7 min)
 
 ### Show the Credentials File
 
@@ -126,40 +133,41 @@ cat .env
 
 > "Our automation scripts read credentials from this environment file. No hardcoded secrets, easy to integrate with secret management systems like Vault or AWS Secrets Manager."
 
-### Create a New Organization (API)
+### Explain the Automation Model
+
+> "In Ops Manager, **Organizations** are your top-level structure—typically one per business unit or team. Within each organization, **Projects** contain your MongoDB deployments. Organizations are set up once, but projects are created frequently—one for each application, environment, or use case."
+
+> "Let's create projects for two different deployment types."
+
+### Create Projects via API
 
 ```bash
-# Show the script first
-cat scripts/create-org.sh | head -30
+# Show the script
+head -40 scripts/create-project.sh
 
-# Create a new organization
-./scripts/create-org.sh demo-org
+# Create a project for a standalone deployment
+./scripts/create-project.sh demo-standalone
 ```
 
 **Expected Output:**
 ```
-Creating organization 'demo-org' in Ops Manager...
+Creating project 'demo-standalone' in organization '69a34148d21fd11d35c6554c'...
 
-Organization created successfully!
-  Name: demo-org
-  ID:   69d67481g54ig44h68f9887f
+Project created successfully!
+  Name: demo-standalone
+  ID:   69c56370f43hf33g57e8776e
 ```
 
-> "That organization now exists in Ops Manager. No UI interaction required. This could be triggered by a ServiceNow ticket, a Terraform apply, or a CI/CD pipeline."
-
-### Create Projects (API)
-
 ```bash
-# Create two projects for different environments
-./scripts/create-project.sh demo-standalone
+# Create a project for a replica set
 ./scripts/create-project.sh demo-replicaset
 ```
 
-> "Projects provide isolation. In a real environment, you might have projects for dev, staging, and production—each with their own access controls and configurations."
+> "Two projects created in seconds via API. In a real environment, this could be triggered by a Jira ticket, a Terraform apply, or a self-service portal."
 
 ### Verify in UI
 
-Switch to Ops Manager UI and show the new organization and projects.
+Switch to Ops Manager UI and show the new projects.
 
 > "The API and UI are always in sync. Operations teams can use the UI for visibility while automation handles provisioning."
 
@@ -222,11 +230,11 @@ Navigate to the projects in Ops Manager and show:
 ### Connect to the Database
 
 ```bash
-# Get the connection port
+# Get the connection ports
 kubectl get svc -n mongodb | grep demo
 
-# Connect to standalone
-mongosh 'mongodb://dbUser:MongoDBPass123!@192.168.139.2:31017/admin'
+# Connect to standalone (adjust port from svc output)
+mongosh 'mongodb://dbUser:MongoDBPass123!@192.168.139.2:<nodeport>/admin'
 
 # Quick test
 db.demo.insertOne({message: "Hello from automation", timestamp: new Date()})
@@ -244,13 +252,11 @@ db.demo.find()
 #### Scaling (Declarative)
 
 ```bash
-# Edit the overlay to change replica count
-# In a real scenario, this would be a PR review + merge
-
+# Show the overlay configuration
 cat k8s/overlays/demo-replicaset/kustomization.yaml
 ```
 
-> "To scale from 3 to 5 nodes, we change one number in our configuration and reapply. Ops Manager handles the rolling addition of new members."
+> "To scale from 3 to 5 nodes, we change one number in our configuration and reapply. Ops Manager handles the rolling addition of new members—no manual replica set reconfiguration."
 
 #### Monitoring & Alerts
 
@@ -263,7 +269,7 @@ Show in Ops Manager UI:
 
 #### Backup & Recovery
 
-Navigate to Backup section:
+Navigate to Backup section (if configured):
 - Continuous backup
 - Point-in-time recovery
 - Snapshot management
@@ -276,18 +282,18 @@ Navigate to Backup section:
 
 | Operation | Method | Time |
 |-----------|--------|------|
-| Create Organization | API Script | 2 seconds |
 | Create Projects | API Script | 2 seconds each |
 | Generate Configs | CLI Script | 1 second each |
 | Deploy Clusters | Declarative Apply | ~3 minutes |
+| **Total** | | **< 5 minutes** |
 
-> "What traditionally takes hours of manual work—provisioning VMs, installing MongoDB, configuring replica sets, setting up monitoring—is now a few commands and a few minutes."
+> "What traditionally takes hours of manual work—provisioning infrastructure, installing MongoDB, configuring replica sets, setting up monitoring—is now a few commands and a few minutes."
 
 ---
 
 ## Wrap-Up Talking Points
 
-1. **Full API Coverage** - Every Ops Manager operation is API-accessible
+1. **Full API Coverage** - Ops Manager operations are API-accessible
 2. **Declarative Management** - Describe desired state, system handles convergence
 3. **GitOps Ready** - Configurations are YAML, versionable, reviewable
 4. **Unified Control Plane** - Single view across all MongoDB deployments
@@ -304,6 +310,7 @@ Be prepared to discuss:
 - **"How do you handle secrets?"** - .env files for demos; production uses Vault, AWS Secrets Manager, K8s secrets
 - **"What about upgrades?"** - Ops Manager handles rolling upgrades; change version in config, reapply
 - **"Multi-region?"** - Ops Manager can manage deployments across regions/data centers
+- **"Can you automate organization creation?"** - Organizations require user authentication (admin setup); projects and below are fully API-automatable with API keys
 
 ---
 
