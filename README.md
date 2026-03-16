@@ -130,7 +130,7 @@ If all commands succeed, you're ready for the demo.
 
 See **[docs/DEMO.md](docs/DEMO.md)** for a 30-minute walkthrough demonstrating:
 
-- API-driven organization and project creation
+- API-driven project creation
 - Declarative MongoDB deployment
 - Operational excellence with Ops Manager
 
@@ -213,7 +213,6 @@ mongodb-pro/
 │   ├── 02-install-appdb.sh          # Install MongoDB AppDB
 │   ├── 03-install-opsmanager.sh     # Install Ops Manager
 │   ├── 04-setup-k8s-operator.sh     # Deploy K8s Operator
-│   ├── create-org.sh               # Create Ops Manager org (API)
 │   ├── create-project.sh           # Create Ops Manager project (API)
 │   ├── new-overlay.sh              # Generate Kustomize overlay
 │   ├── start-all.sh                # Start environment
