@@ -45,55 +45,26 @@ helm repo update
 # Create namespace
 echo ""
 echo "=== Creating mongodb namespace ==="
-kubectl apply -f "$K8S_DIR/namespace.yaml"
+kubectl create namespace mongodb --dry-run=client -o yaml | kubectl apply -f -
 
-# Create ConfigMaps with Ops Manager connection details
-echo ""
-echo "=== Creating Ops Manager ConfigMaps ==="
-
-# ConfigMap for lab-01 (standalone deployments)
-cat > "$K8S_DIR/ops-manager-config.yaml" << EOF
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ops-manager-connection
-  namespace: mongodb
-data:
-  baseUrl: ${OPS_MANAGER_URL}
-  orgId: ${OPS_MANAGER_ORG_ID}
-  projectName: lab-01
-EOF
-kubectl apply -f "$K8S_DIR/ops-manager-config.yaml"
-
-# ConfigMap for lab-02 (replica set deployments)
-cat > "$K8S_DIR/ops-manager-config-lab02.yaml" << EOF
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ops-manager-connection-lab02
-  namespace: mongodb
-data:
-  baseUrl: ${OPS_MANAGER_URL}
-  orgId: ${OPS_MANAGER_ORG_ID}
-  projectName: lab-02
-EOF
-kubectl apply -f "$K8S_DIR/ops-manager-config-lab02.yaml"
-
-# Create Secret with API credentials
+# Create Ops Manager credentials Secret from .env
 echo ""
 echo "=== Creating Ops Manager credentials Secret ==="
-cat > "$K8S_DIR/ops-manager-secret.yaml" << EOF
-apiVersion: v1
-kind: Secret
-metadata:
-  name: ops-manager-credentials
-  namespace: mongodb
-type: Opaque
-stringData:
-  publicKey: ${OPS_MANAGER_API_PUBLIC_KEY}
-  privateKey: "${OPS_MANAGER_API_PRIVATE_KEY}"
-EOF
-kubectl apply -f "$K8S_DIR/ops-manager-secret.yaml"
+kubectl create secret generic ops-manager-credentials \
+    --namespace mongodb \
+    --from-literal=publicKey="${OPS_MANAGER_API_PUBLIC_KEY}" \
+    --from-literal=privateKey="${OPS_MANAGER_API_PRIVATE_KEY}" \
+    --dry-run=client -o yaml | kubectl apply -f -
+
+# Create user credentials Secret
+echo ""
+echo "=== Creating MongoDB user credentials Secret ==="
+kubectl create secret generic mongodb-user-credentials \
+    --namespace mongodb \
+    --from-literal=dbUser-password="MongoDBPass123!" \
+    --from-literal=dbAdmin-password="MongoDBPass123!" \
+    --from-literal=sysAdmin-password="MongoDBPass123!" \
+    --dry-run=client -o yaml | kubectl apply -f -
 
 # Install the operator
 echo ""
@@ -121,11 +92,20 @@ kubectl get pods -n mongodb
 echo ""
 echo "=== Next steps ==="
 echo ""
-echo "Deploy MongoDB clusters:"
-echo "  kubectl apply -f k8s/mongodb-standalone.yaml   # Standalone in lab-01"
-echo "  kubectl apply -f k8s/mongodb-replicaset.yaml   # ReplicaSet in lab-02"
+echo "Deploy MongoDB clusters using Kustomize:"
 echo ""
-echo "Create users:"
-echo "  kubectl apply -f k8s/mongodb-user-secret.yaml"
-echo "  kubectl apply -f k8s/mongodb-user.yaml         # User for standalone"
-echo "  kubectl apply -f k8s/mongodb-user-rs.yaml      # User for replica set"
+echo "  # Standalone deployment (lab-01 project)"
+echo "  kubectl apply -k k8s/overlays/lab-01"
+echo ""
+echo "  # ReplicaSet deployment (lab-02 project)"
+echo "  kubectl apply -k k8s/overlays/lab-02"
+echo ""
+echo "  # Preview what will be deployed:"
+echo "  kubectl kustomize k8s/overlays/lab-01"
+echo ""
+echo "Or use the legacy YAML files:"
+echo "  kubectl apply -f k8s/mongodb-standalone.yaml"
+echo "  kubectl apply -f k8s/mongodb-replicaset.yaml"
+echo "  kubectl apply -f k8s/mongodb-services.yaml"
+echo "  kubectl apply -f k8s/mongodb-users-secret.yaml"
+echo "  kubectl apply -f k8s/mongodb-users.yaml"

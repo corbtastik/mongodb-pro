@@ -1,0 +1,56 @@
+# dbUser - Application user (CRUD, collections, indexes)
+apiVersion: mongodb.com/v1
+kind: MongoDBUser
+metadata:
+  name: dbuser
+spec:
+  username: dbUser
+  db: admin
+  passwordSecretKeyRef:
+    name: mongodb-user-credentials
+    key: dbUser-password
+  mongodbResourceRef:
+    name: mongodb-deployment
+  roles:
+    - db: admin
+      name: readWriteAnyDatabase
+
+---
+# dbAdmin - Database administrator (create DBs, manage users)
+apiVersion: mongodb.com/v1
+kind: MongoDBUser
+metadata:
+  name: dbadmin
+spec:
+  username: dbAdmin
+  db: admin
+  passwordSecretKeyRef:
+    name: mongodb-user-credentials
+    key: dbAdmin-password
+  mongodbResourceRef:
+    name: mongodb-deployment
+  roles:
+    - db: admin
+      name: dbAdminAnyDatabase
+    - db: admin
+      name: userAdminAnyDatabase
+    - db: admin
+      name: readWriteAnyDatabase
+
+---
+# sysAdmin - Superuser (full control)
+apiVersion: mongodb.com/v1
+kind: MongoDBUser
+metadata:
+  name: sysadmin
+spec:
+  username: sysAdmin
+  db: admin
+  passwordSecretKeyRef:
+    name: mongodb-user-credentials
+    key: sysAdmin-password
+  mongodbResourceRef:
+    name: mongodb-deployment
+  roles:
+    - db: admin
+      name: root

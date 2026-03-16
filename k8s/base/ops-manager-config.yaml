@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ops-manager-connection
+data:
+  baseUrl: http://opsmanager.orb.local:8080
+  orgId: PLACEHOLDER_ORG_ID
+  projectName: PLACEHOLDER_PROJECT_NAME
