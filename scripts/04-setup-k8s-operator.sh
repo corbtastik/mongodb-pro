@@ -70,15 +70,14 @@ kubectl create secret generic mongodb-user-credentials \
 echo ""
 echo "=== Installing MongoDB Enterprise Operator ==="
 if helm status enterprise-operator -n mongodb &>/dev/null; then
-    echo "Operator already installed. Upgrading to watch all namespaces..."
-    helm upgrade enterprise-operator mongodb/enterprise-operator \
-        --namespace mongodb \
-        --set operator.watchNamespace=""
-else
-    helm install enterprise-operator mongodb/enterprise-operator \
-        --namespace mongodb \
-        --set operator.watchNamespace=""
+    echo "Operator already installed. Reinstalling to watch all namespaces..."
+    helm uninstall enterprise-operator -n mongodb
+    sleep 5
 fi
+
+helm install enterprise-operator mongodb/enterprise-operator \
+    --namespace mongodb \
+    --set operator.watchNamespace='*'
 
 # Wait for operator to be ready
 echo ""
