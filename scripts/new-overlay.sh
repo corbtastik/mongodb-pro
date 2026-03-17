@@ -174,6 +174,12 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: ${NAMESPACE}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mongodb-enterprise-database-pods
+  namespace: ${NAMESPACE}
 EOF
 
 # Generate ops-manager-secret.yaml with real credentials
