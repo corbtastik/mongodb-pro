@@ -30,13 +30,16 @@ Run these commands before the demo to ensure everything is ready:
 curl -s -o /dev/null -w "%{http_code}" http://opsmanager.orb.local:8080
 # Expected: 200, 302, or 303
 
-# Verify K8s operator is running and watching all namespaces
+# Verify K8s operator is running
 kubectl get pods -n mongodb | grep operator
 # Expected: mongodb-enterprise-operator running
 
-# If operator was installed with old config, upgrade it:
-# helm upgrade enterprise-operator mongodb/enterprise-operator \
-#     --namespace mongodb --set operator.watchNamespace=""
+# Verify operator watches all namespaces (IMPORTANT!)
+kubectl get deployment mongodb-enterprise-operator -n mongodb -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="WATCH_NAMESPACE")].value}'
+# Expected: empty (no output) = watches all namespaces
+# If it shows "mongodb", run:
+helm upgrade enterprise-operator mongodb/enterprise-operator \
+    --namespace mongodb --set operator.watchNamespace=""
 
 # Verify .env is configured
 cat .env | grep -v "^#" | grep -v "^$"
