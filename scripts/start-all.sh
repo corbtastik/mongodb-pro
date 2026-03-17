@@ -6,7 +6,6 @@
 set -e
 
 VM_NAME="opsmanager"
-NAMESPACE="mongodb"
 
 echo "=== Starting MongoDB Pro Environment ==="
 echo ""
@@ -67,30 +66,46 @@ if [ $WAITED -ge $MAX_WAIT ]; then
     echo "Check with: orb -m $VM_NAME -u root systemctl status mongodb-mms"
 fi
 
-# Scale up K8s MongoDB workloads
+# Scale up K8s MongoDB workloads across all mongodb namespaces
 echo ""
 echo "=== Scaling up K8s MongoDB deployments ==="
-if kubectl get namespace "$NAMESPACE" &>/dev/null; then
-    # Scale up standalone (1 replica)
-    if kubectl get statefulset demo-standalone -n "$NAMESPACE" &>/dev/null; then
-        echo "Scaling up demo-standalone..."
-        kubectl scale statefulset demo-standalone --replicas=1 -n "$NAMESPACE"
-    fi
 
-    # Scale up replica set (3 replicas)
-    if kubectl get statefulset demo-rs -n "$NAMESPACE" &>/dev/null; then
-        echo "Scaling up demo-rs..."
-        kubectl scale statefulset demo-rs --replicas=3 -n "$NAMESPACE"
-    fi
+FOUND_DEPLOYMENTS=false
 
+# Find all mongodb namespaces
+for ns in $(kubectl get namespaces -o name 2>/dev/null | grep "^namespace/mongodb" | cut -d/ -f2); do
+    # Get all MongoDB resources in this namespace
+    for mongodb in $(kubectl get mongodb -n "$ns" -o name 2>/dev/null); do
+        FOUND_DEPLOYMENTS=true
+        name=$(echo "$mongodb" | cut -d/ -f2)
+
+        # Get the desired member count from the MongoDB spec (default to 1 for standalone)
+        members=$(kubectl get mongodb "$name" -n "$ns" -o jsonpath='{.spec.members}' 2>/dev/null || echo "1")
+
+        # Scale the corresponding statefulset
+        if kubectl get statefulset "$name" -n "$ns" &>/dev/null; then
+            echo "Scaling up $name in $ns to $members replica(s)..."
+            kubectl scale statefulset "$name" --replicas="$members" -n "$ns"
+        fi
+    done
+done
+
+if [ "$FOUND_DEPLOYMENTS" = true ]; then
     echo ""
     echo "Waiting for MongoDB pods to be ready..."
-    kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=mongodb -n "$NAMESPACE" --timeout=120s 2>/dev/null || true
+    for ns in $(kubectl get namespaces -o name 2>/dev/null | grep "^namespace/mongodb" | cut -d/ -f2); do
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=mongodb -n "$ns" --timeout=120s 2>/dev/null || true
+    done
 
     echo ""
-    kubectl get mongodb,pods -n "$NAMESPACE"
+    echo "MongoDB deployments:"
+    for ns in $(kubectl get namespaces -o name 2>/dev/null | grep "^namespace/mongodb" | cut -d/ -f2); do
+        if kubectl get mongodb -n "$ns" &>/dev/null 2>&1; then
+            kubectl get mongodb,pods -n "$ns" 2>/dev/null || true
+        fi
+    done
 else
-    echo "Namespace '$NAMESPACE' not found. Skipping K8s."
+    echo "No MongoDB deployments found."
 fi
 
 echo ""
@@ -98,6 +113,5 @@ echo "=== Environment started ==="
 echo ""
 echo "Ops Manager: http://opsmanager.orb.local:8080"
 echo ""
-echo "MongoDB connections:"
-echo "  Standalone: mongosh 'mongodb://demouser:MongoDBPass123!@192.168.139.2:31261/admin'"
-echo "  ReplicaSet: mongosh 'mongodb://demouser:MongoDBPass123!@192.168.139.2:30191/admin?replicaSet=demo-rs'"
+echo "To get a connection string for a deployment, run:"
+echo "  ./scripts/get-connection-string.sh <project-name>"
