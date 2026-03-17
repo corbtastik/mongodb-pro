@@ -5,6 +5,7 @@ namespace: mongodb
 
 resources:
   - namespace.yaml
+  - ops-manager-secret.yaml
   - ../../base
 
 patches:
