@@ -122,7 +122,31 @@ kubectl get pods -n mongodb
 ./scripts/create-project.sh test-project
 ```
 
-If all commands succeed, you're ready for the demo.
+If all commands succeed, you're ready to deploy MongoDB clusters.
+
+---
+
+## Deploy MongoDB
+
+```bash
+# 1. Create project in Ops Manager
+./scripts/create-project.sh my-project
+
+# 2. Generate Kustomize overlay
+./scripts/new-overlay.sh my-project                    # Standalone (default)
+./scripts/new-overlay.sh my-project --type ReplicaSet  # 3-node replica set
+
+# 3. Deploy
+kubectl apply -k k8s/overlays/my-project
+
+# 4. Check status
+kubectl get mongodb,pods -n mongodb-my-project
+
+# 5. Connect (after Running)
+mongosh 'mongodb://dbUser:MongoDBPass123!@192.168.139.2:<nodeport>/admin'
+```
+
+Each deployment gets its own isolated namespace (`mongodb-<project-name>`).
 
 ---
 
