@@ -66,18 +66,18 @@ kubectl create secret generic mongodb-user-credentials \
     --from-literal=sysAdmin-password="MongoDBPass123!" \
     --dry-run=client -o yaml | kubectl apply -f -
 
-# Install the operator
+# Install the operator (watches all namespaces for MongoDB resources)
 echo ""
 echo "=== Installing MongoDB Enterprise Operator ==="
 if helm status enterprise-operator -n mongodb &>/dev/null; then
-    echo "Operator already installed. Upgrading..."
+    echo "Operator already installed. Upgrading to watch all namespaces..."
     helm upgrade enterprise-operator mongodb/enterprise-operator \
         --namespace mongodb \
-        --set operator.watchNamespace=mongodb
+        --set operator.watchNamespace=""
 else
     helm install enterprise-operator mongodb/enterprise-operator \
         --namespace mongodb \
-        --set operator.watchNamespace=mongodb
+        --set operator.watchNamespace=""
 fi
 
 # Wait for operator to be ready
@@ -92,20 +92,15 @@ kubectl get pods -n mongodb
 echo ""
 echo "=== Next steps ==="
 echo ""
-echo "Deploy MongoDB clusters using Kustomize:"
+echo "Create and deploy MongoDB clusters:"
 echo ""
-echo "  # Standalone deployment (lab-01 project)"
-echo "  kubectl apply -k k8s/overlays/lab-01"
+echo "  # 1. Create project in Ops Manager"
+echo "  ./scripts/create-project.sh my-project"
 echo ""
-echo "  # ReplicaSet deployment (lab-02 project)"
-echo "  kubectl apply -k k8s/overlays/lab-02"
+echo "  # 2. Generate Kustomize overlay (creates isolated namespace)"
+echo "  ./scripts/new-overlay.sh my-project"
 echo ""
-echo "  # Preview what will be deployed:"
-echo "  kubectl kustomize k8s/overlays/lab-01"
+echo "  # 3. Deploy"
+echo "  kubectl apply -k k8s/overlays/my-project"
 echo ""
-echo "Or use the legacy YAML files:"
-echo "  kubectl apply -f k8s/mongodb-standalone.yaml"
-echo "  kubectl apply -f k8s/mongodb-replicaset.yaml"
-echo "  kubectl apply -f k8s/mongodb-services.yaml"
-echo "  kubectl apply -f k8s/mongodb-users-secret.yaml"
-echo "  kubectl apply -f k8s/mongodb-users.yaml"
+echo "Each deployment gets its own namespace (mongodb-<project-name>)."
