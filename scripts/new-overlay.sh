@@ -10,6 +10,7 @@ usage() {
     echo "Usage: $0 <project-name> [options]"
     echo ""
     echo "Options:"
+    echo "  --namespace <name>               Kubernetes namespace (default: mongodb-<project-name>)"
     echo "  --type <Standalone|ReplicaSet>   MongoDB deployment type (default: Standalone)"
     echo "  --members <n>                    Number of members (default: 1 for Standalone, 3 for ReplicaSet)"
     echo "  --nodeport <port>                NodePort for external access (default: auto-assign)"
@@ -18,14 +19,15 @@ usage() {
     echo "  --org-id <id>                    Ops Manager Organization ID (reads from .env if not set)"
     echo ""
     echo "Examples:"
-    echo "  $0 lab-03                                    # Standalone with defaults"
-    echo "  $0 lab-04 --type ReplicaSet --members 3     # 3-node replica set"
-    echo "  $0 lab-05 --nodeport 31500 --cpu-limit 4    # Custom resources"
+    echo "  $0 lab-03                                    # Creates namespace mongodb-lab-03"
+    echo "  $0 lab-04 --namespace myapp-db               # Custom namespace"
+    echo "  $0 lab-05 --type ReplicaSet --members 3     # 3-node replica set"
     exit 1
 }
 
 # Default values
 PROJECT_NAME=""
+NAMESPACE=""
 DEPLOY_TYPE="Standalone"
 MEMBERS=""
 NODEPORT=""
@@ -36,6 +38,10 @@ ORG_ID=""
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --namespace)
+            NAMESPACE="$2"
+            shift 2
+            ;;
         --type)
             DEPLOY_TYPE="$2"
             shift 2
@@ -77,6 +83,11 @@ done
 
 if [[ -z "$PROJECT_NAME" ]]; then
     usage
+fi
+
+# Default namespace is mongodb-<project-name>
+if [[ -z "$NAMESPACE" ]]; then
+    NAMESPACE="mongodb-${PROJECT_NAME}"
 fi
 
 # Load .env for ORG_ID if not provided
@@ -126,7 +137,7 @@ if [[ -z "$NODEPORT" ]]; then
     done
 fi
 
-# Generate deployment name from project name
+# Deployment name matches project name
 DEPLOY_NAME="${PROJECT_NAME}"
 
 OVERLAY_DIR="$PROJECT_ROOT/k8s/overlays/$PROJECT_NAME"
@@ -137,6 +148,7 @@ if [[ -d "$OVERLAY_DIR" ]]; then
 fi
 
 echo "Creating Kustomize overlay for '$PROJECT_NAME'..."
+echo "  Namespace: $NAMESPACE"
 echo "  Type:      $DEPLOY_TYPE"
 echo "  Members:   $MEMBERS"
 echo "  NodePort:  $NODEPORT"
@@ -147,15 +159,29 @@ echo ""
 
 mkdir -p "$OVERLAY_DIR"
 
+# Generate namespace.yaml for this overlay
+cat > "$OVERLAY_DIR/namespace.yaml" << EOF
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${NAMESPACE}
+EOF
+
 # Generate kustomization.yaml
 cat > "$OVERLAY_DIR/kustomization.yaml" << EOF
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: mongodb
+namespace: ${NAMESPACE}
 
 resources:
-  - ../../base
+  - namespace.yaml
+  - ../../base/mongodb.yaml
+  - ../../base/service.yaml
+  - ../../base/ops-manager-config.yaml
+  - ../../base/ops-manager-secret.yaml
+  - ../../base/users.yaml
+  - ../../base/users-secret.yaml
 
 patches:
   # Patch MongoDB deployment
@@ -174,7 +200,7 @@ patches:
         value: ${MEMBERS}
       - op: replace
         path: /spec/opsManager/configMapRef/name
-        value: ops-manager-connection-${PROJECT_NAME}
+        value: ops-manager-connection
       - op: replace
         path: /spec/podSpec/podTemplate/spec/containers/0/resources/limits/cpu
         value: "${CPU_LIMIT}"
@@ -187,9 +213,6 @@ patches:
       kind: ConfigMap
       name: ops-manager-connection
     patch: |-
-      - op: replace
-        path: /metadata/name
-        value: ops-manager-connection-${PROJECT_NAME}
       - op: replace
         path: /data/orgId
         value: "${ORG_ID}"
@@ -219,7 +242,7 @@ patches:
     patch: |-
       - op: replace
         path: /metadata/name
-        value: dbuser-${PROJECT_NAME}
+        value: dbuser
       - op: replace
         path: /spec/mongodbResourceRef/name
         value: ${DEPLOY_NAME}
@@ -230,7 +253,7 @@ patches:
     patch: |-
       - op: replace
         path: /metadata/name
-        value: dbadmin-${PROJECT_NAME}
+        value: dbadmin
       - op: replace
         path: /spec/mongodbResourceRef/name
         value: ${DEPLOY_NAME}
@@ -241,7 +264,7 @@ patches:
     patch: |-
       - op: replace
         path: /metadata/name
-        value: sysadmin-${PROJECT_NAME}
+        value: sysadmin
       - op: replace
         path: /spec/mongodbResourceRef/name
         value: ${DEPLOY_NAME}
@@ -255,5 +278,8 @@ echo ""
 echo "To deploy:"
 echo "  kubectl apply -k k8s/overlays/$PROJECT_NAME"
 echo ""
-echo "NOTE: Make sure project '$PROJECT_NAME' exists in Ops Manager first:"
+echo "To connect (after deployment is ready):"
+echo "  mongosh 'mongodb://dbUser:MongoDBPass123!@192.168.139.2:${NODEPORT}/admin'"
+echo ""
+echo "NOTE: Ensure project '$PROJECT_NAME' exists in Ops Manager:"
 echo "  ./scripts/create-project.sh $PROJECT_NAME"

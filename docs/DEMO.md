@@ -30,9 +30,13 @@ Run these commands before the demo to ensure everything is ready:
 curl -s -o /dev/null -w "%{http_code}" http://opsmanager.orb.local:8080
 # Expected: 200, 302, or 303
 
-# Verify K8s operator is running
+# Verify K8s operator is running and watching all namespaces
 kubectl get pods -n mongodb | grep operator
 # Expected: mongodb-enterprise-operator running
+
+# If operator was installed with old config, upgrade it:
+# helm upgrade enterprise-operator mongodb/enterprise-operator \
+#     --namespace mongodb --set operator.watchNamespace=""
 
 # Verify .env is configured
 cat .env | grep -v "^#" | grep -v "^$"
@@ -42,6 +46,9 @@ cat .env | grep -v "^#" | grep -v "^$"
 ./scripts/create-project.sh pre-demo-test
 # Expected: Project created successfully
 # Clean up: delete "pre-demo-test" project in Ops Manager UI
+
+# Clean up any previous demo overlays
+rm -rf k8s/overlays/demo-*
 ```
 
 ---
@@ -182,12 +189,14 @@ Switch to Ops Manager UI and show the new projects.
 ### Generate Deployment Configurations
 
 ```bash
-# Generate configuration for a standalone instance
+# Generate configuration for a standalone instance (creates namespace mongodb-demo-standalone)
 ./scripts/new-overlay.sh demo-standalone
 
-# Generate configuration for a 3-node replica set
+# Generate configuration for a 3-node replica set (creates namespace mongodb-demo-replicaset)
 ./scripts/new-overlay.sh demo-replicaset --type ReplicaSet --members 3
 ```
+
+> "Notice each deployment gets its own isolated namespace. This provides proper separation between environments—dev, staging, production can coexist without interference."
 
 ### Show What Was Generated
 
@@ -196,23 +205,23 @@ Switch to Ops Manager UI and show the new projects.
 kubectl kustomize k8s/overlays/demo-standalone
 ```
 
-> "This YAML describes our desired state: MongoDB 8.0 Enterprise, SCRAM authentication, specific resource allocation. It's version-controlled, reviewable, and repeatable."
+> "This YAML describes our desired state: MongoDB 8.0 Enterprise, SCRAM authentication, isolated namespace, specific resource allocation. It's version-controlled, reviewable, and repeatable."
 
 ### Deploy the Clusters
 
 ```bash
-# Deploy standalone
+# Deploy standalone (to namespace mongodb-demo-standalone)
 kubectl apply -k k8s/overlays/demo-standalone
 
-# Deploy replica set
+# Deploy replica set (to namespace mongodb-demo-replicaset)
 kubectl apply -k k8s/overlays/demo-replicaset
 ```
 
 ### Watch Deployment Progress
 
 ```bash
-# Watch pods come up
-kubectl get pods -n mongodb -w
+# Watch pods across all mongodb namespaces
+kubectl get pods -A | grep mongodb-demo
 ```
 
 > "The MongoDB Enterprise Operator reads our configuration, communicates with Ops Manager, and provisions the databases. Ops Manager handles the actual MongoDB deployment, configuration, and agent installation."
@@ -230,10 +239,10 @@ Navigate to the projects in Ops Manager and show:
 ### Connect to the Database
 
 ```bash
-# Get the connection ports
-kubectl get svc -n mongodb | grep demo
+# Get the connection ports (each namespace has its own service)
+kubectl get svc -A | grep demo
 
-# Connect to standalone (adjust port from svc output)
+# Connect to standalone (port shown by new-overlay.sh output)
 mongosh 'mongodb://dbUser:MongoDBPass123!@192.168.139.2:<nodeport>/admin'
 
 # Quick test
@@ -322,8 +331,11 @@ If something goes wrong during the demo:
 # Check operator logs
 kubectl logs deployment/mongodb-enterprise-operator -n mongodb --tail=50
 
-# Check MongoDB resource status
-kubectl describe mongodb demo-standalone -n mongodb
+# Check MongoDB resource status (use correct namespace)
+kubectl describe mongodb demo-standalone -n mongodb-demo-standalone
+
+# List all MongoDB resources across namespaces
+kubectl get mongodb -A
 
 # Restart operator if stuck
 kubectl rollout restart deployment/mongodb-enterprise-operator -n mongodb
@@ -338,7 +350,7 @@ kubectl apply -k k8s/overlays/demo-standalone
 ## Post-Demo Cleanup
 
 ```bash
-# Delete demo deployments
+# Delete demo deployments (this also deletes the namespaces)
 kubectl delete -k k8s/overlays/demo-standalone
 kubectl delete -k k8s/overlays/demo-replicaset
 
