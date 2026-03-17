@@ -6,8 +6,9 @@ kind: Kustomization
 
 resources:
   - ops-manager-config.yaml
-  - ops-manager-secret.yaml
   - mongodb.yaml
   - service.yaml
   - users-secret.yaml
   - users.yaml
+
+# Note: ops-manager-secret.yaml is provided by each overlay with real credentials

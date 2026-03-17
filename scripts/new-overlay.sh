@@ -90,16 +90,25 @@ if [[ -z "$NAMESPACE" ]]; then
     NAMESPACE="mongodb-${PROJECT_NAME}"
 fi
 
-# Load .env for ORG_ID if not provided
+# Load .env for credentials
+if [[ -f "$PROJECT_ROOT/.env" ]]; then
+    source "$PROJECT_ROOT/.env"
+fi
+
+# Use ORG_ID from .env if not provided via flag
 if [[ -z "$ORG_ID" ]]; then
-    if [[ -f "$PROJECT_ROOT/.env" ]]; then
-        source "$PROJECT_ROOT/.env"
-        ORG_ID="${OPS_MANAGER_ORG_ID:-}"
-    fi
+    ORG_ID="${OPS_MANAGER_ORG_ID:-}"
 fi
 
 if [[ -z "$ORG_ID" ]]; then
     echo "Error: Organization ID not found. Provide --org-id or set OPS_MANAGER_ORG_ID in .env"
+    exit 1
+fi
+
+# Verify API credentials are available
+if [[ -z "$OPS_MANAGER_API_PUBLIC_KEY" ]] || [[ -z "$OPS_MANAGER_API_PRIVATE_KEY" ]]; then
+    echo "Error: API credentials not found in .env"
+    echo "Ensure OPS_MANAGER_API_PUBLIC_KEY and OPS_MANAGER_API_PRIVATE_KEY are set"
     exit 1
 fi
 
@@ -167,6 +176,18 @@ metadata:
   name: ${NAMESPACE}
 EOF
 
+# Generate ops-manager-secret.yaml with real credentials
+cat > "$OVERLAY_DIR/ops-manager-secret.yaml" << EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ops-manager-credentials
+type: Opaque
+stringData:
+  publicKey: ${OPS_MANAGER_API_PUBLIC_KEY}
+  privateKey: "${OPS_MANAGER_API_PRIVATE_KEY}"
+EOF
+
 # Generate kustomization.yaml
 cat > "$OVERLAY_DIR/kustomization.yaml" << EOF
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -176,6 +197,7 @@ namespace: ${NAMESPACE}
 
 resources:
   - namespace.yaml
+  - ops-manager-secret.yaml
   - ../../base
 
 patches:
