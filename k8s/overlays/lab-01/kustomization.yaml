@@ -4,6 +4,7 @@ kind: Kustomization
 namespace: mongodb
 
 resources:
+  - namespace.yaml
   - ../../base
 
 patches:

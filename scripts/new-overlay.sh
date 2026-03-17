@@ -176,12 +176,7 @@ namespace: ${NAMESPACE}
 
 resources:
   - namespace.yaml
-  - ../../base/mongodb.yaml
-  - ../../base/service.yaml
-  - ../../base/ops-manager-config.yaml
-  - ../../base/ops-manager-secret.yaml
-  - ../../base/users.yaml
-  - ../../base/users-secret.yaml
+  - ../../base
 
 patches:
   # Patch MongoDB deployment

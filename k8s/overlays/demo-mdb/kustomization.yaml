@@ -1,45 +1,48 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: mongodb
+namespace: mongodb-demo-mdb
 
 resources:
   - namespace.yaml
   - ../../base
 
 patches:
-  # Patch MongoDB deployment - ReplicaSet with 3 members
+  # Patch MongoDB deployment
   - target:
       kind: MongoDB
       name: mongodb-deployment
     patch: |-
       - op: replace
         path: /metadata/name
-        value: demo-rs
+        value: demo-mdb
       - op: replace
         path: /spec/type
-        value: ReplicaSet
+        value: Standalone
       - op: replace
         path: /spec/members
-        value: 3
+        value: 1
       - op: replace
         path: /spec/opsManager/configMapRef/name
-        value: ops-manager-connection-lab02
+        value: ops-manager-connection
+      - op: replace
+        path: /spec/podSpec/podTemplate/spec/containers/0/resources/limits/cpu
+        value: "2"
+      - op: replace
+        path: /spec/podSpec/podTemplate/spec/containers/0/resources/limits/memory
+        value: 4Gi
 
-  # Patch Ops Manager ConfigMap for lab-02
+  # Patch Ops Manager ConfigMap
   - target:
       kind: ConfigMap
       name: ops-manager-connection
     patch: |-
       - op: replace
-        path: /metadata/name
-        value: ops-manager-connection-lab02
-      - op: replace
         path: /data/orgId
         value: "69a34148d21fd11d35c6554c"
       - op: replace
         path: /data/projectName
-        value: "lab-02"
+        value: "demo-mdb"
 
   # Patch Service
   - target:
@@ -48,13 +51,13 @@ patches:
     patch: |-
       - op: replace
         path: /metadata/name
-        value: demo-rs-external
+        value: demo-mdb-external
       - op: replace
         path: /spec/selector/app
-        value: demo-rs-svc
+        value: demo-mdb-svc
       - op: replace
         path: /spec/ports/0/nodePort
-        value: 30191
+        value: 30101
 
   # Patch MongoDBUser resources
   - target:
@@ -63,10 +66,10 @@ patches:
     patch: |-
       - op: replace
         path: /metadata/name
-        value: dbuser-rs
+        value: dbuser
       - op: replace
         path: /spec/mongodbResourceRef/name
-        value: demo-rs
+        value: demo-mdb
 
   - target:
       kind: MongoDBUser
@@ -74,10 +77,10 @@ patches:
     patch: |-
       - op: replace
         path: /metadata/name
-        value: dbadmin-rs
+        value: dbadmin
       - op: replace
         path: /spec/mongodbResourceRef/name
-        value: demo-rs
+        value: demo-mdb
 
   - target:
       kind: MongoDBUser
@@ -85,7 +88,7 @@ patches:
     patch: |-
       - op: replace
         path: /metadata/name
-        value: sysadmin-rs
+        value: sysadmin
       - op: replace
         path: /spec/mongodbResourceRef/name
-        value: demo-rs
+        value: demo-mdb
