@@ -28,6 +28,10 @@ temp/
 
 .env
 
+# User-created overlays (contain credentials, keep lab-01/lab-02 as examples)
+k8s/overlays/demo-*/
+k8s/overlays/dev-*/
+
 # Ops Manager packages (large files)
 mongodb-mms-*.rpm
 mongodb-mms-*.deb
