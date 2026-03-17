@@ -36,10 +36,11 @@ kubectl get pods -n mongodb | grep operator
 
 # Verify operator watches all namespaces (IMPORTANT!)
 kubectl get deployment mongodb-enterprise-operator -n mongodb -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="WATCH_NAMESPACE")].value}'
-# Expected: empty (no output) = watches all namespaces
-# If it shows "mongodb", run:
-helm upgrade enterprise-operator mongodb/enterprise-operator \
-    --namespace mongodb --set operator.watchNamespace=""
+# Expected: * (asterisk) = watches all namespaces
+# If it shows "mongodb" or uses fieldRef, reinstall:
+helm uninstall enterprise-operator -n mongodb
+helm install enterprise-operator mongodb/enterprise-operator \
+    --namespace mongodb --set operator.watchNamespace='*'
 
 # Verify .env is configured
 cat .env | grep -v "^#" | grep -v "^$"
