@@ -18,8 +18,9 @@ Then rebuild from scratch:
 ./scripts/01-create-opsmanager-vm.sh
 ./scripts/02-install-appdb.sh
 ./scripts/03-install-opsmanager.sh
+./scripts/03a-configure-tls.sh  # Optional: Enable HTTPS
 # Create new API key in Ops Manager UI (add 192.168.139.0/24 to access list)
-# Update .env with new PUBLIC_API_KEY and PRIVATE_API_KEY
+# Update .env with new credentials (use https:// URL if TLS enabled)
 ./scripts/04-setup-k8s-operator.sh
 ```
 

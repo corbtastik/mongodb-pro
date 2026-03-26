@@ -27,7 +27,9 @@ Run these commands before the demo to ensure everything is ready:
 
 ```bash
 # Verify Ops Manager is running
-curl -s -o /dev/null -w "%{http_code}" http://opsmanager.orb.local:8080
+# Use HTTP or HTTPS depending on your setup:
+curl -s -o /dev/null -w "%{http_code}" http://opsmanager.orb.local:8080   # HTTP
+curl -sk -o /dev/null -w "%{http_code}" https://opsmanager.orb.local:8443 # HTTPS (TLS)
 # Expected: 200, 302, or 303
 
 # Verify K8s operator is running
@@ -103,7 +105,8 @@ rm -rf k8s/overlays/demo-*
 ### Open Ops Manager UI
 
 ```
-http://opsmanager.orb.local:8080
+http://opsmanager.orb.local:8080   # HTTP
+https://opsmanager.orb.local:8443  # HTTPS (TLS)
 ```
 
 ### Key Points to Highlight

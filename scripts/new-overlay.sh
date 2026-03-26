@@ -95,6 +95,13 @@ if [[ -f "$PROJECT_ROOT/.env" ]]; then
     source "$PROJECT_ROOT/.env"
 fi
 
+# Detect TLS from OPS_MANAGER_URL
+TLS_ENABLED=false
+OPS_MANAGER_BASE_URL="${OPS_MANAGER_URL:-http://opsmanager.orb.local:8080}"
+if [[ "$OPS_MANAGER_BASE_URL" == https://* ]]; then
+    TLS_ENABLED=true
+fi
+
 # Use ORG_ID from .env if not provided via flag
 if [[ -z "$ORG_ID" ]]; then
     ORG_ID="${OPS_MANAGER_ORG_ID:-}"
@@ -157,13 +164,15 @@ if [[ -d "$OVERLAY_DIR" ]]; then
 fi
 
 echo "Creating Kustomize overlay for '$PROJECT_NAME'..."
-echo "  Namespace: $NAMESPACE"
-echo "  Type:      $DEPLOY_TYPE"
-echo "  Members:   $MEMBERS"
-echo "  NodePort:  $NODEPORT"
-echo "  CPU:       $CPU_LIMIT"
-echo "  Memory:    $MEMORY_LIMIT"
-echo "  Org ID:    $ORG_ID"
+echo "  Namespace:    $NAMESPACE"
+echo "  Type:         $DEPLOY_TYPE"
+echo "  Members:      $MEMBERS"
+echo "  NodePort:     $NODEPORT"
+echo "  CPU:          $CPU_LIMIT"
+echo "  Memory:       $MEMORY_LIMIT"
+echo "  Org ID:       $ORG_ID"
+echo "  Ops Manager:  $OPS_MANAGER_BASE_URL"
+echo "  TLS:          $TLS_ENABLED"
 echo ""
 
 mkdir -p "$OVERLAY_DIR"
@@ -194,6 +203,14 @@ stringData:
   privateKey: "${OPS_MANAGER_API_PRIVATE_KEY}"
 EOF
 
+# TLS CA is handled at the operator level (patched during 04-setup-k8s-operator.sh)
+# No per-namespace CA ConfigMap needed
+
+# Build resources list
+RESOURCES="  - namespace.yaml
+  - ops-manager-secret.yaml
+  - ../../base"
+
 # Generate kustomization.yaml
 cat > "$OVERLAY_DIR/kustomization.yaml" << EOF
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -202,9 +219,7 @@ kind: Kustomization
 namespace: ${NAMESPACE}
 
 resources:
-  - namespace.yaml
-  - ops-manager-secret.yaml
-  - ../../base
+$RESOURCES
 
 patches:
   # Patch MongoDB deployment
@@ -230,12 +245,30 @@ patches:
       - op: replace
         path: /spec/podSpec/podTemplate/spec/containers/0/resources/limits/memory
         value: ${MEMORY_LIMIT}
+EOF
+
+# TLS handling: When using HTTPS with self-signed certs, we need to disable
+# SSL certificate validation for agent downloads
+if [[ "$TLS_ENABLED" == true ]]; then
+    cat >> "$OVERLAY_DIR/kustomization.yaml" << 'TLSPATCH'
+      - op: add
+        path: /spec/podSpec/podTemplate/spec/containers/0/env
+        value:
+          - name: SSL_REQUIRE_VALID_MMS_CERTIFICATES
+            value: "false"
+TLSPATCH
+fi
+
+cat >> "$OVERLAY_DIR/kustomization.yaml" << EOF
 
   # Patch Ops Manager ConfigMap
   - target:
       kind: ConfigMap
       name: ops-manager-connection
     patch: |-
+      - op: replace
+        path: /data/baseUrl
+        value: "${OPS_MANAGER_BASE_URL}"
       - op: replace
         path: /data/orgId
         value: "${ORG_ID}"

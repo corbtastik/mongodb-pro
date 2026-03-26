@@ -68,9 +68,28 @@ Downloads and installs Ops Manager 8.0.
 ./scripts/03-install-opsmanager.sh
 ```
 
+### Step 4a: Configure TLS (Optional)
+
+Enables HTTPS with a self-signed certificate. Recommended for security-conscious demos.
+
+```bash
+./scripts/03a-configure-tls.sh
+```
+
+This will:
+- Generate a self-signed CA and server certificate
+- Configure Ops Manager to use HTTPS on port 8443
+- Export the CA certificate for Kubernetes operator use
+
+After running, access Ops Manager at `https://opsmanager.orb.local:8443` (browser will show certificate warning).
+
 ### Step 5: Configure Ops Manager (UI)
 
-Open http://opsmanager.orb.local:8080 and complete initial setup:
+Open Ops Manager in your browser:
+- **HTTP:** http://opsmanager.orb.local:8080
+- **HTTPS:** https://opsmanager.orb.local:8443 (if Step 4a was run)
+
+Complete initial setup:
 
 1. **Register** - Create your admin account (first user becomes admin)
 2. **Configure** - Accept defaults or configure SMTP if desired
@@ -91,7 +110,10 @@ cp .env.example .env
 Edit `.env` with your Ops Manager values:
 
 ```bash
+# Use HTTPS URL if Step 4a was run, otherwise HTTP
 OPS_MANAGER_URL=http://opsmanager.orb.local:8080
+# OPS_MANAGER_URL=https://opsmanager.orb.local:8443
+
 OPS_MANAGER_ORG_ID=<your-24-char-org-id>
 OPS_MANAGER_API_PUBLIC_KEY=<your-public-key>
 OPS_MANAGER_API_PRIVATE_KEY=<your-private-key>

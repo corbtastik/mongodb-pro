@@ -31,6 +31,13 @@ fi
 # Load environment
 source "$ENV_FILE"
 
+# Detect if TLS is enabled (URL starts with https)
+TLS_ENABLED=false
+if [[ "$OPS_MANAGER_URL" == https://* ]]; then
+    TLS_ENABLED=true
+    echo "TLS detected in OPS_MANAGER_URL"
+fi
+
 # Check for Helm
 if ! command -v helm &>/dev/null; then
     echo "Installing Helm..."
@@ -66,6 +73,23 @@ kubectl create secret generic mongodb-user-credentials \
     --from-literal=sysAdmin-password="MongoDBPass123!" \
     --dry-run=client -o yaml | kubectl apply -f -
 
+# Create CA ConfigMap if TLS is enabled
+if [[ "$TLS_ENABLED" == true ]]; then
+    CA_CERT_FILE="$PROJECT_DIR/certs/ca.crt"
+    if [[ -f "$CA_CERT_FILE" ]]; then
+        echo ""
+        echo "=== Creating Ops Manager CA ConfigMap (TLS enabled) ==="
+        kubectl create configmap ops-manager-ca \
+            --namespace mongodb \
+            --from-file=mms-ca.crt="$CA_CERT_FILE" \
+            --dry-run=client -o yaml | kubectl apply -f -
+    else
+        echo ""
+        echo "WARNING: TLS is enabled but CA certificate not found at $CA_CERT_FILE"
+        echo "Run 03a-configure-tls.sh to generate certificates."
+    fi
+fi
+
 # Install the operator (watches all namespaces for MongoDB resources)
 echo ""
 echo "=== Installing MongoDB Enterprise Operator ==="
@@ -83,6 +107,48 @@ helm install enterprise-operator mongodb/enterprise-operator \
 echo ""
 echo "=== Waiting for operator to be ready ==="
 kubectl rollout status deployment/mongodb-enterprise-operator -n mongodb --timeout=120s
+
+# Patch operator to trust Ops Manager CA if TLS is enabled
+if [[ "$TLS_ENABLED" == true ]]; then
+    echo ""
+    echo "=== Patching operator to trust Ops Manager CA ==="
+    kubectl patch deployment mongodb-enterprise-operator -n mongodb --type='strategic' -p='{
+      "spec": {
+        "template": {
+          "spec": {
+            "volumes": [
+              {
+                "name": "ops-manager-ca",
+                "configMap": {
+                  "name": "ops-manager-ca"
+                }
+              }
+            ],
+            "containers": [
+              {
+                "name": "mongodb-enterprise-operator",
+                "volumeMounts": [
+                  {
+                    "name": "ops-manager-ca",
+                    "mountPath": "/etc/ssl/certs/ops-manager-ca.crt",
+                    "subPath": "mms-ca.crt",
+                    "readOnly": true
+                  }
+                ],
+                "env": [
+                  {
+                    "name": "SSL_CERT_FILE",
+                    "value": "/etc/ssl/certs/ops-manager-ca.crt"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }'
+    kubectl rollout status deployment/mongodb-enterprise-operator -n mongodb --timeout=60s
+fi
 
 echo ""
 echo "=== Operator setup complete ==="
