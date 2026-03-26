@@ -275,6 +275,40 @@ mongodb-pro/
 
 ---
 
+## Mini Demo
+
+Quick setup from scratch to a running MongoDB standalone:
+
+```bash
+# 1. Setup infrastructure
+./scripts/01-create-opsmanager-vm.sh
+./scripts/02-install-appdb.sh
+./scripts/03-install-opsmanager.sh
+./scripts/03a-configure-tls.sh
+
+# 2. Manual: Open https://opsmanager.orb.local:8443
+#    - Create admin user
+#    - Create organization
+#    - Create API key (Organization Owner, add 192.168.139.0/24 to access list)
+#    - Update .env with HTTPS URL and credentials
+
+# 3. Deploy K8s operator
+./scripts/04-setup-k8s-operator.sh
+
+# 4. Deploy MongoDB
+./scripts/create-project.sh demo-01
+./scripts/new-overlay.sh demo-01
+kubectl apply -k k8s/overlays/demo-01
+
+# 5. Verify
+kubectl get mongodb,pods -n mongodb-demo-01 -w
+
+# 6. Connect
+mongosh 'mongodb://dbUser:MongoDBPass123%21@192.168.139.2:30100/admin'
+```
+
+---
+
 ## Resources
 
 - [MongoDB Ops Manager Documentation](https://www.mongodb.com/docs/ops-manager/current/)
