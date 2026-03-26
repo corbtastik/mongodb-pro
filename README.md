@@ -308,7 +308,7 @@ kubectl get mongodb,pods -n mongodb-demo-01 -w
 ./scripts/query-sample-data.sh demo-01
 
 # 7. Connect
-mongosh 'mongodb://dbUser:MongoDBPass123%21@192.168.139.2:30100/admin'
+mongosh 'mongodb://dbAdmin:MongoDBPass123%21@192.168.139.2:30100/admin'
 ```
 
 ---
