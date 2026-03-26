@@ -1,0 +1,34 @@
+# =============================================================================
+# Ops Manager Configuration
+# =============================================================================
+# Leave these empty for first run. After Ops Manager UI setup, fill in values.
+
+enable_tls = true
+
+# Fill these in after Ops Manager UI setup:
+ops_manager_org_id          = ""
+ops_manager_api_public_key  = ""
+ops_manager_api_private_key = ""
+
+# =============================================================================
+# MongoDB Cluster Configuration
+# =============================================================================
+
+deploy_cluster       = true
+cluster_name         = "demo-01"
+cluster_type         = "Standalone"  # or "ReplicaSet"
+cluster_members      = 3             # ignored for Standalone
+cluster_cpu_limit    = "2"
+cluster_memory_limit = "4Gi"
+
+# =============================================================================
+# Version Triggers
+# =============================================================================
+# Increment these to force recreation of specific resources
+
+vm_version          = "1.0"
+appdb_version       = "1.0"
+ops_manager_version = "1.0"
+tls_version         = "1.0"
+operator_version    = "1.0"
+cluster_version     = "1.0"
