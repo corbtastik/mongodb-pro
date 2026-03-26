@@ -303,7 +303,11 @@ kubectl apply -k k8s/overlays/demo-01
 # 5. Verify
 kubectl get mongodb,pods -n mongodb-demo-01 -w
 
-# 6. Connect
+# 6. Load sample data and run queries
+./scripts/load-sample-data.sh demo-01
+./scripts/query-sample-data.sh demo-01
+
+# 7. Connect
 mongosh 'mongodb://dbUser:MongoDBPass123%21@192.168.139.2:30100/admin'
 ```
 
