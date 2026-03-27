@@ -8,19 +8,23 @@ variable "enable_tls" {
   default     = true
 }
 
+# API credentials - create in Ops Manager UI after admin user setup
 variable "ops_manager_org_id" {
-  description = "Ops Manager Organization ID (from UI after initial setup)"
+  description = "Ops Manager Organization ID"
   type        = string
+  default     = ""
 }
 
 variable "ops_manager_api_public_key" {
   description = "Ops Manager API Public Key"
   type        = string
+  default     = ""
 }
 
 variable "ops_manager_api_private_key" {
   description = "Ops Manager API Private Key"
   type        = string
+  default     = ""
   sensitive   = true
 }
 
@@ -28,40 +32,16 @@ variable "ops_manager_api_private_key" {
 # MongoDB Cluster Configuration
 # =============================================================================
 
-variable "deploy_cluster" {
-  description = "Whether to deploy a MongoDB cluster"
-  type        = bool
-  default     = true
-}
-
-variable "cluster_name" {
-  description = "Name for the MongoDB cluster/project"
-  type        = string
-  default     = "demo-01"
-}
-
-variable "cluster_type" {
-  description = "MongoDB cluster type: Standalone or ReplicaSet"
-  type        = string
-  default     = "Standalone"
-}
-
-variable "cluster_members" {
-  description = "Number of replica set members (ignored for Standalone)"
-  type        = number
-  default     = 3
-}
-
-variable "cluster_cpu_limit" {
-  description = "CPU limit per MongoDB pod"
-  type        = string
-  default     = "2"
-}
-
-variable "cluster_memory_limit" {
-  description = "Memory limit per MongoDB pod"
-  type        = string
-  default     = "4Gi"
+variable "clusters" {
+  description = "Map of MongoDB clusters to deploy"
+  type = map(object({
+    type         = string           # "Standalone" or "ReplicaSet"
+    members      = optional(number, 3)
+    cpu_limit    = optional(string, "2")
+    memory_limit = optional(string, "4Gi")
+    version      = optional(string, "1.0")
+  }))
+  default = {}
 }
 
 # =============================================================================
@@ -94,12 +74,6 @@ variable "tls_version" {
 
 variable "operator_version" {
   description = "Version trigger for K8s Operator"
-  type        = string
-  default     = "1.0"
-}
-
-variable "cluster_version" {
-  description = "Version trigger for MongoDB cluster"
   type        = string
   default     = "1.0"
 }

@@ -9,6 +9,9 @@
 *.tfvars
 !*.tfvars.example
 
+# Generated API credentials
+.api-credentials
+
 # Crash logs
 crash.log
 crash.*.log

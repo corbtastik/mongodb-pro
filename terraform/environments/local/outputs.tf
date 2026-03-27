@@ -16,29 +16,16 @@ output "tls_enabled" {
 # MongoDB Cluster Outputs
 # =============================================================================
 
-output "cluster_deployed" {
-  description = "Whether a MongoDB cluster was deployed"
-  value       = var.deploy_cluster && var.ops_manager_org_id != ""
-}
-
-output "cluster_namespace" {
-  description = "Kubernetes namespace for the MongoDB cluster"
-  value       = var.deploy_cluster && var.ops_manager_org_id != "" ? module.mongodb_cluster[0].namespace : null
-}
-
-output "cluster_name" {
-  description = "MongoDB cluster name"
-  value       = var.deploy_cluster && var.ops_manager_org_id != "" ? module.mongodb_cluster[0].cluster_name : null
-}
-
-output "cluster_type" {
-  description = "MongoDB cluster type"
-  value       = var.deploy_cluster && var.ops_manager_org_id != "" ? module.mongodb_cluster[0].cluster_type : null
-}
-
-output "connection_string_template" {
-  description = "MongoDB connection string template"
-  value       = var.deploy_cluster && var.ops_manager_org_id != "" ? module.mongodb_cluster[0].connection_string_template : null
+output "clusters" {
+  description = "Deployed MongoDB clusters"
+  value = {
+    for name, cluster in module.mongodb_cluster : name => {
+      namespace         = cluster.namespace
+      cluster_name      = cluster.cluster_name
+      cluster_type      = cluster.cluster_type
+      connection_string = cluster.connection_string_template
+    }
+  }
 }
 
 # =============================================================================
@@ -47,25 +34,26 @@ output "connection_string_template" {
 
 output "next_steps" {
   description = "Instructions for next steps"
-  value       = var.ops_manager_org_id == "" ? <<-EOT
-
-    ============================================================
-    NEXT STEPS - Ops Manager UI Configuration Required
-    ============================================================
-
-    1. Open: ${module.ops_manager.ops_manager_url}
-    2. Create admin user and organization
-    3. Create API key:
-       - Organization → Access Manager → API Keys
-       - Permissions: Organization Owner
-       - Access List: 192.168.139.0/24
-    4. Update terraform.tfvars:
-       ops_manager_org_id          = "<org-id>"
-       ops_manager_api_public_key  = "<public-key>"
-       ops_manager_api_private_key = "<private-key>"
-    5. Run: terraform apply
-
-    ============================================================
-  EOT
-  : "Deployment complete! Use 'kubectl get mongodb -A' to check status."
+  value = local.credentials_ready ? "Deployment complete! Use 'kubectl get mongodb -A' to check status." : join("\n", [
+    "",
+    "============================================================",
+    "NEXT STEPS - Create API Key in Ops Manager UI",
+    "============================================================",
+    "",
+    "1. Open: ${module.ops_manager.ops_manager_url}",
+    "2. Go to: Organization > Access Manager > API Keys",
+    "3. Create API Key:",
+    "   - Description: terraform",
+    "   - Permissions: Organization Owner",
+    "4. Add to Access List: 192.168.215.0/24",
+    "5. Copy Organization ID (from URL or Organization Settings)",
+    "6. Update terraform.tfvars:",
+    "   ops_manager_org_id          = \"<org-id>\"",
+    "   ops_manager_api_public_key  = \"<public-key>\"",
+    "   ops_manager_api_private_key = \"<private-key>\"",
+    "7. Run: terraform apply",
+    "",
+    "============================================================",
+    ""
+  ])
 }

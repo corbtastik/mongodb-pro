@@ -9,18 +9,15 @@ locals {
 
   # Ops Manager URL based on TLS setting
   ops_manager_url = var.enable_tls ? "https://opsmanager.orb.local:8443" : "http://opsmanager.orb.local:8080"
+
+  # Check if we have credentials to proceed with operator/cluster deployment
+  credentials_ready = var.ops_manager_org_id != "" && var.ops_manager_api_public_key != ""
 }
 
 # =============================================================================
 # Module 1: Ops Manager Infrastructure
 # =============================================================================
 # This module creates the VM, installs AppDB, Ops Manager, and configures TLS.
-# After this completes, you must manually:
-#   1. Open the Ops Manager UI
-#   2. Create an admin user and organization
-#   3. Create an API key
-#   4. Update terraform.tfvars with the credentials
-#   5. Run terraform apply again to continue with K8s operator and cluster
 
 module "ops_manager" {
   source = "../../modules/ops-manager-local"
@@ -37,13 +34,12 @@ module "ops_manager" {
 # Module 2: Kubernetes Operator
 # =============================================================================
 # Deploys the MongoDB Enterprise Kubernetes Operator.
-# Requires Ops Manager credentials to be configured.
 
 module "k8s_operator" {
   source = "../../modules/k8s-operator"
 
-  # Only deploy if we have credentials configured
-  count = var.ops_manager_org_id != "" ? 1 : 0
+  # Only deploy if we have valid API credentials
+  count = local.credentials_ready ? 1 : 0
 
   scripts_path                = local.scripts_path
   project_path                = local.project_path
@@ -57,28 +53,28 @@ module "k8s_operator" {
 }
 
 # =============================================================================
-# Module 3: MongoDB Cluster
+# Module 3: MongoDB Clusters
 # =============================================================================
-# Deploys a MongoDB cluster (Standalone or ReplicaSet).
+# Deploys MongoDB clusters (Standalone or ReplicaSet) using for_each.
 
 module "mongodb_cluster" {
   source = "../../modules/mongodb-cluster"
 
-  # Only deploy if enabled and operator is deployed
-  count = var.deploy_cluster && var.ops_manager_org_id != "" ? 1 : 0
+  # Deploy each cluster defined in the clusters map (requires operator)
+  for_each = local.credentials_ready ? var.clusters : {}
 
-  project_name                = var.cluster_name
+  project_name                = each.key
   scripts_path                = local.scripts_path
   project_path                = local.project_path
   ops_manager_url             = local.ops_manager_url
   ops_manager_org_id          = var.ops_manager_org_id
   ops_manager_api_public_key  = var.ops_manager_api_public_key
   ops_manager_api_private_key = var.ops_manager_api_private_key
-  cluster_type                = var.cluster_type
-  members                     = var.cluster_members
-  cpu_limit                   = var.cluster_cpu_limit
-  memory_limit                = var.cluster_memory_limit
-  cluster_version             = var.cluster_version
+  cluster_type                = each.value.type
+  members                     = each.value.members
+  cpu_limit                   = each.value.cpu_limit
+  memory_limit                = each.value.memory_limit
+  cluster_version             = each.value.version
 
   depends_on_resource_id = module.k8s_operator[0].operator_resource_id
 }

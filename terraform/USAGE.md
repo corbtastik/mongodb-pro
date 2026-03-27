@@ -64,21 +64,21 @@ This will:
 3. Install Ops Manager 8.0
 4. Configure TLS (HTTPS on port 8443)
 
-### Step 3: Configure Ops Manager (Manual)
+### Step 3: Create Admin User and API Key (Manual)
 
 1. Open https://opsmanager.orb.local:8443
 2. Create admin user (first user becomes admin)
-3. Create organization (e.g., "demo-org")
-4. Create API key:
+3. Complete the setup wizard
+4. Create API Key:
    - Go to: Organization → Access Manager → API Keys
    - Description: "terraform"
    - Permissions: Organization Owner
-   - Access List: `192.168.139.0/24`
+   - Add to Access List: `192.168.215.0/24`
 5. Copy the Organization ID, Public Key, and Private Key
 
 ### Step 4: Update Configuration
 
-Edit `terraform.tfvars` with your credentials:
+Edit `terraform.tfvars` with your API credentials:
 
 ```hcl
 ops_manager_org_id          = "your-24-char-org-id"
@@ -95,7 +95,7 @@ terraform apply
 This will:
 1. Deploy the MongoDB Enterprise Kubernetes Operator
 2. Create a project in Ops Manager
-3. Deploy a MongoDB cluster (Standalone by default)
+3. Deploy MongoDB clusters defined in `clusters` variable
 
 ### Step 6: Verify Deployment
 
@@ -109,13 +109,48 @@ mongosh 'mongodb://dbAdmin:MongoDBPass123%21@192.168.139.2:30100/admin'
 
 ## Configuration Options
 
-### Cluster Type
+### Defining Clusters
 
-Deploy a ReplicaSet instead of Standalone:
+Clusters are defined as a map in `terraform.tfvars`. Each key is the cluster/project name:
 
 ```hcl
-cluster_type    = "ReplicaSet"
-cluster_members = 3
+clusters = {
+  "demo-01" = {
+    type = "Standalone"
+  }
+}
+```
+
+Deploy multiple clusters:
+
+```hcl
+clusters = {
+  "demo-01" = {
+    type = "Standalone"
+  }
+  "demo-02" = {
+    type    = "ReplicaSet"
+    members = 3
+  }
+}
+```
+
+Cluster options:
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `type` | `Standalone` or `ReplicaSet` | Required |
+| `members` | ReplicaSet member count | `3` |
+| `cpu_limit` | CPU limit per pod | `"2"` |
+| `memory_limit` | Memory limit per pod | `"4Gi"` |
+| `version` | Version trigger for recreation | `"1.0"` |
+
+### Skip Cluster Deployment
+
+Deploy only Ops Manager and the K8s operator (no clusters):
+
+```hcl
+clusters = {}
 ```
 
 ### Disable TLS
@@ -126,14 +161,6 @@ Run Ops Manager without TLS (HTTP only):
 enable_tls = false
 ```
 
-### Skip Cluster Deployment
-
-Deploy only Ops Manager and the K8s operator:
-
-```hcl
-deploy_cluster = false
-```
-
 ### Force Resource Recreation
 
 Increment version triggers to force recreation:
@@ -141,7 +168,14 @@ Increment version triggers to force recreation:
 ```hcl
 vm_version          = "2.0"  # Recreate VM
 ops_manager_version = "2.0"  # Reinstall Ops Manager
-cluster_version     = "2.0"  # Redeploy MongoDB cluster
+
+# Per-cluster version trigger
+clusters = {
+  "demo-01" = {
+    type    = "Standalone"
+    version = "2.0"  # Redeploy this cluster
+  }
+}
 ```
 
 ## Terraform Commands
@@ -174,9 +208,26 @@ After successful deployment:
 |--------|-------------|
 | `ops_manager_url` | Ops Manager URL (HTTP or HTTPS) |
 | `tls_enabled` | Whether TLS is enabled |
-| `cluster_namespace` | Kubernetes namespace for MongoDB |
-| `cluster_name` | MongoDB cluster name |
-| `connection_string_template` | MongoDB connection string |
+| `clusters` | Map of deployed clusters with connection info |
+
+Example output:
+
+```
+clusters = {
+  "demo-01" = {
+    cluster_name      = "demo-01"
+    cluster_type      = "Standalone"
+    connection_string = "mongodb://dbAdmin:MongoDBPass123%21@192.168.139.2:<nodeport>/admin"
+    namespace         = "mongodb-demo-01"
+  }
+  "demo-02" = {
+    cluster_name      = "demo-02"
+    cluster_type      = "ReplicaSet"
+    connection_string = "mongodb://dbAdmin:MongoDBPass123%21@192.168.139.2:<nodeport>/admin"
+    namespace         = "mongodb-demo-02"
+  }
+}
+```
 
 ## Troubleshooting
 

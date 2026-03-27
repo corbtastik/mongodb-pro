@@ -21,6 +21,13 @@ resource "null_resource" "create_vm" {
     command     = "${var.scripts_path}/01-create-opsmanager-vm.sh"
     working_dir = dirname(var.scripts_path)
   }
+
+  # Destroy: Delete the OrbStack VM
+  provisioner "local-exec" {
+    when       = destroy
+    command    = "orb delete opsmanager -f 2>/dev/null || true"
+    on_failure = continue
+  }
 }
 
 # Step 2: Install MongoDB AppDB (3-node replica set)
@@ -64,10 +71,18 @@ resource "null_resource" "configure_tls" {
     version         = var.tls_version
     script_hash     = filemd5("${var.scripts_path}/03a-configure-tls.sh")
     ops_manager_id  = null_resource.install_ops_manager.id
+    scripts_path    = var.scripts_path
   }
 
   provisioner "local-exec" {
     command     = "${var.scripts_path}/03a-configure-tls.sh"
     working_dir = dirname(var.scripts_path)
+  }
+
+  # Destroy: Clean up generated certificates
+  provisioner "local-exec" {
+    when       = destroy
+    command    = "rm -rf ${self.triggers.scripts_path}/certs 2>/dev/null || true"
+    on_failure = continue
   }
 }

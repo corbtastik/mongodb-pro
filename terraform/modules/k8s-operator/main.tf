@@ -31,4 +31,14 @@ resource "null_resource" "setup_k8s_operator" {
       OPS_MANAGER_API_PRIVATE_KEY = var.ops_manager_api_private_key
     }
   }
+
+  # Destroy: Remove operator and namespace
+  provisioner "local-exec" {
+    when       = destroy
+    command    = <<-EOT
+      helm uninstall mongodb-enterprise-operator -n mongodb 2>/dev/null || true
+      kubectl delete namespace mongodb --ignore-not-found=true 2>/dev/null || true
+    EOT
+    on_failure = continue
+  }
 }

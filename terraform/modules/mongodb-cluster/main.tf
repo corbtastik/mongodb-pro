@@ -48,6 +48,7 @@ resource "null_resource" "generate_overlay" {
     version       = var.cluster_version
     script_hash   = filemd5("${var.scripts_path}/new-overlay.sh")
     project_id    = null_resource.create_project.id
+    project_path  = var.project_path
   }
 
   provisioner "local-exec" {
@@ -64,8 +65,9 @@ resource "null_resource" "generate_overlay" {
 
   # Clean up overlay on destroy
   provisioner "local-exec" {
-    when    = destroy
-    command = "rm -rf ${self.triggers.project_name != "" ? "${path.module}/../../../k8s/overlays/${self.triggers.project_name}" : "/dev/null"} 2>/dev/null || true"
+    when       = destroy
+    command    = "rm -rf ${self.triggers.project_path}/k8s/overlays/${self.triggers.project_name} 2>/dev/null || true"
+    on_failure = continue
   }
 }
 
@@ -75,8 +77,10 @@ resource "null_resource" "deploy_cluster" {
 
   triggers = {
     project_name = var.project_name
+    namespace    = local.namespace
     version      = var.cluster_version
     overlay_id   = null_resource.generate_overlay.id
+    project_path = var.project_path
   }
 
   provisioner "local-exec" {
@@ -84,11 +88,14 @@ resource "null_resource" "deploy_cluster" {
     working_dir = var.project_path
   }
 
-  # Delete Kubernetes resources on destroy
+  # Delete Kubernetes resources and namespace on destroy
   provisioner "local-exec" {
-    when        = destroy
-    command     = "kubectl delete -k k8s/overlays/${self.triggers.project_name} --ignore-not-found=true 2>/dev/null || true"
-    working_dir = path.module
+    when    = destroy
+    command = <<-EOT
+      kubectl delete -k k8s/overlays/${self.triggers.project_name} --ignore-not-found=true 2>/dev/null || true
+      kubectl delete namespace ${self.triggers.namespace} --ignore-not-found=true 2>/dev/null || true
+    EOT
+    working_dir = self.triggers.project_path
     on_failure  = continue
   }
 }
