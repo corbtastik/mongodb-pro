@@ -6,13 +6,17 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# Load .env file
-if [[ -f "$PROJECT_ROOT/.env" ]]; then
-    source "$PROJECT_ROOT/.env"
-else
-    echo "Error: .env file not found at $PROJECT_ROOT/.env"
-    echo "Copy .env.example to .env and configure your credentials."
-    exit 1
+# Load .env file only if environment variables are not already set
+# This allows Terraform to pass values via environment variables
+if [[ -z "$OPS_MANAGER_URL" ]] || [[ -z "$OPS_MANAGER_ORG_ID" ]] || \
+   [[ -z "$OPS_MANAGER_API_PUBLIC_KEY" ]] || [[ -z "$OPS_MANAGER_API_PRIVATE_KEY" ]]; then
+    if [[ -f "$PROJECT_ROOT/.env" ]]; then
+        source "$PROJECT_ROOT/.env"
+    else
+        echo "Error: .env file not found at $PROJECT_ROOT/.env"
+        echo "Copy .env.example to .env and configure your credentials."
+        exit 1
+    fi
 fi
 
 # Validate required variables
@@ -21,6 +25,18 @@ if [[ -z "$OPS_MANAGER_URL" ]] || [[ -z "$OPS_MANAGER_ORG_ID" ]] || \
     echo "Error: Missing required environment variables."
     echo "Ensure OPS_MANAGER_URL, OPS_MANAGER_ORG_ID, OPS_MANAGER_API_PUBLIC_KEY, and OPS_MANAGER_API_PRIVATE_KEY are set in .env"
     exit 1
+fi
+
+# Configure TLS options for curl
+CURL_TLS_OPTS=""
+if [[ "$OPS_MANAGER_URL" == https://* ]]; then
+    CA_CERT="$SCRIPT_DIR/certs/ca.crt"
+    if [[ -f "$CA_CERT" ]]; then
+        CURL_TLS_OPTS="--cacert $CA_CERT"
+    else
+        # Fall back to insecure for self-signed certs without CA
+        CURL_TLS_OPTS="-k"
+    fi
 fi
 
 # Get project name from argument or prompt
@@ -38,6 +54,7 @@ echo "Creating project '$PROJECT_NAME' in organization '$OPS_MANAGER_ORG_ID'..."
 
 # Create project via API
 RESPONSE=$(curl -s -w "\n%{http_code}" \
+    $CURL_TLS_OPTS \
     --digest \
     -u "${OPS_MANAGER_API_PUBLIC_KEY}:${OPS_MANAGER_API_PRIVATE_KEY}" \
     -H "Content-Type: application/json" \

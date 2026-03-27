@@ -90,9 +90,11 @@ if [[ -z "$NAMESPACE" ]]; then
     NAMESPACE="mongodb-${PROJECT_NAME}"
 fi
 
-# Load .env for credentials
-if [[ -f "$PROJECT_ROOT/.env" ]]; then
-    source "$PROJECT_ROOT/.env"
+# Load .env for credentials only if not already set (allows Terraform to pass values)
+if [[ -z "$OPS_MANAGER_URL" ]] || [[ -z "$OPS_MANAGER_ORG_ID" ]]; then
+    if [[ -f "$PROJECT_ROOT/.env" ]]; then
+        source "$PROJECT_ROOT/.env"
+    fi
 fi
 
 # Detect TLS from OPS_MANAGER_URL
