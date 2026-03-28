@@ -3,12 +3,17 @@
 # =============================================================================
 
 variable "enable_tls" {
-  description = "Enable TLS for Ops Manager"
+  description = "Enable TLS for Ops Manager (HTTPS on port 8443)"
   type        = bool
   default     = true
 }
 
-# API credentials - create in Ops Manager UI after admin user setup
+# =============================================================================
+# API Credentials
+# =============================================================================
+# Create these in Ops Manager UI after admin user setup:
+# Organization → Access Manager → API Keys
+
 variable "ops_manager_org_id" {
   description = "Ops Manager Organization ID"
   type        = string
@@ -29,51 +34,36 @@ variable "ops_manager_api_private_key" {
 }
 
 # =============================================================================
-# MongoDB Cluster Configuration
+# Version Triggers
 # =============================================================================
-
-variable "clusters" {
-  description = "Map of MongoDB clusters to deploy"
-  type = map(object({
-    type         = string           # "Standalone" or "ReplicaSet"
-    members      = optional(number, 3)
-    cpu_limit    = optional(string, "2")
-    memory_limit = optional(string, "4Gi")
-    version      = optional(string, "1.0")
-  }))
-  default = {}
-}
-
-# =============================================================================
-# Version Triggers (change to force recreation)
-# =============================================================================
+# Increment these to force recreation of specific resources
 
 variable "vm_version" {
-  description = "Version trigger for VM"
+  description = "Version trigger for VM recreation"
   type        = string
   default     = "1.0"
 }
 
 variable "appdb_version" {
-  description = "Version trigger for AppDB"
+  description = "Version trigger for AppDB reinstall"
   type        = string
   default     = "1.0"
 }
 
 variable "ops_manager_version" {
-  description = "Version trigger for Ops Manager"
+  description = "Version trigger for Ops Manager reinstall"
   type        = string
   default     = "1.0"
 }
 
 variable "tls_version" {
-  description = "Version trigger for TLS"
+  description = "Version trigger for TLS reconfiguration"
   type        = string
   default     = "1.0"
 }
 
 variable "operator_version" {
-  description = "Version trigger for K8s Operator"
+  description = "Version trigger for K8s Operator redeployment"
   type        = string
   default     = "1.0"
 }

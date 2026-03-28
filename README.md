@@ -35,7 +35,18 @@ Local MongoDB Enterprise environment with Ops Manager and Kubernetes Operator on
   - Kubernetes enabled (Settings → Kubernetes → Enable)
 - [Homebrew](https://brew.sh/) installed (for Helm)
 
-## Setup
+## Setup Options
+
+This project supports two deployment methods:
+
+| Method | Best For | Guide |
+|--------|----------|-------|
+| **Shell Scripts** | Learning, manual control | This README |
+| **Terraform** | Automation, IaC, demos | [terraform/USAGE.md](terraform/USAGE.md) |
+
+---
+
+## Shell Script Setup
 
 ### Step 1: Clone the Repository
 
@@ -258,12 +269,18 @@ mongodb-pro/
 │   ├── 01-create-opsmanager-vm.sh   # Create VM
 │   ├── 02-install-appdb.sh          # Install MongoDB AppDB
 │   ├── 03-install-opsmanager.sh     # Install Ops Manager
+│   ├── 03a-configure-tls.sh         # Configure TLS (optional)
 │   ├── 04-setup-k8s-operator.sh     # Deploy K8s Operator
-│   ├── create-project.sh           # Create Ops Manager project (API)
-│   ├── new-overlay.sh              # Generate Kustomize overlay
-│   ├── start-all.sh                # Start environment
-│   ├── stop-all.sh                 # Stop environment
-│   └── teardown.sh                 # Destroy everything
+│   ├── create-project.sh            # Create Ops Manager project (API)
+│   ├── new-overlay.sh               # Generate Kustomize overlay
+│   ├── start-all.sh                 # Start environment
+│   ├── stop-all.sh                  # Stop environment
+│   └── teardown.sh                  # Destroy everything
+├── terraform/
+│   ├── control-plane/local/         # Ops Manager + K8s Operator (IaC)
+│   ├── data-plane/local/            # MongoDB clusters (IaC)
+│   ├── modules/                     # Reusable Terraform modules
+│   └── USAGE.md                     # Terraform guide
 ├── k8s/
 │   ├── base/                        # Kustomize base templates
 │   └── overlays/                    # Per-project configurations

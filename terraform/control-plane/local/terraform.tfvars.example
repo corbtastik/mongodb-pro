@@ -1,0 +1,28 @@
+# =============================================================================
+# Control Plane Configuration
+# =============================================================================
+
+enable_tls = true
+
+# =============================================================================
+# API Credentials
+# =============================================================================
+# Leave empty on first run. After Ops Manager UI setup:
+# 1. Create admin user
+# 2. Create API Key (Organization > Access Manager > API Keys)
+# 3. Fill in values below and run: terraform apply
+
+ops_manager_org_id          = ""
+ops_manager_api_public_key  = ""
+ops_manager_api_private_key = ""
+
+# =============================================================================
+# Version Triggers
+# =============================================================================
+# Increment to force recreation of specific resources
+
+vm_version          = "1.0"
+appdb_version       = "1.0"
+ops_manager_version = "1.0"
+tls_version         = "1.0"
+operator_version    = "1.0"
