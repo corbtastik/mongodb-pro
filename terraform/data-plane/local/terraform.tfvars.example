@@ -1,0 +1,21 @@
+# =============================================================================
+# Data Plane Configuration
+# =============================================================================
+# Ops Manager credentials are automatically read from control-plane state.
+# You only need to define your clusters here.
+
+clusters = {
+  "demo-01" = {
+    type = "Standalone"
+  }
+  # "demo-02" = {
+  #   type    = "ReplicaSet"
+  #   members = 3
+  # }
+  # "demo-03" = {
+  #   type         = "ReplicaSet"
+  #   members      = 5
+  #   cpu_limit    = "4"
+  #   memory_limit = "8Gi"
+  # }
+}
